@@ -42,3 +42,6 @@ test-results/
 .kilo/
 .tmp/
 design_iterations/
+
+# Generated icon bundles (built by scripts/build-icon-data.mjs)
+public/icon-data/

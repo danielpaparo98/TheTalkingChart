@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — refined during the design phase.
+ * Base palette kept intentionally neutral until the UI direction lands.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
