@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — "framed-sheet" direction (.taste-skill/direction.json, seed 491494898).
+ * Design tokens — "page-is-the-object" direction (.taste-skill/direction.json,
+ * seed 756865226; app style "Framed sheet", .taste-skill/app/direction.json).
  *
  * Two blocks on purpose:
  *  1. `@theme` — Tailwind v4 theme variables; generate the utilities used in
@@ -12,14 +13,19 @@
  * Values are written literally in both places and kept in sync deliberately,
  * so plain tokens never depend on Tailwind's variable emission.
  *
+ * Palette "Stone and blueprint": stone paper carries the page, near-black ink,
+ * one blueprint-blue accent (selection, links, the single filled action on the
+ * landing). Two-colour print job proportions — accent stays under ~3%.
+ *
  * House rules (enforced later by lint/inspect): no gradients, no shadows at
  * rest, 1px borders, sentence case, tabular-nums on counts.
  */
 @theme {
-  /* Type — IBM Plex Sans; Inter kept as fallback per the design phase */
-  --font-sans: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Type — Barlow (text) + Barlow Condensed (display), the dealt faces */
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
 
-  /* Type scale (direction.json font.sizes; KPI at 400 — semibold on labels) */
+  /* Type scale (app chrome; KPI at 400 — semibold on labels) */
   --text-title: 22px;
   --text-title--line-height: 1.25;
   --text-section: 16px;
@@ -32,19 +38,20 @@
   --text-small--line-height: 1.4;
 
   /* Surface + ink */
-  --color-ground: #f7f6f2; /* warm stone (print-shop face; overrides direction #f9fbfc) */
-  --color-surface: #ffffff;
-  --color-raised: #f4f6f8;
-  --color-active: #ebedee;
-  --color-border: #e8eaec;
-  --color-rule: #f0f1f2;
-  --color-control: #cdced1;
-  --color-text: #131416;
-  --color-muted: #5d5f60;
+  --color-ground: #dfdedb; /* stone — the desk the sheet sits on */
+  --color-surface: #ffffff; /* paper — sheets and panels stay white (print truth) */
+  --color-raised: #f0eee9;
+  --color-active: #e4e2dc;
+  --color-well: #d3d2ce; /* builder canvas: one step darker than the ground */
+  --color-border: #d6d4ce;
+  --color-rule: #e8e6e1;
+  --color-control: #b3b1aa;
+  --color-text: #26251e;
+  --color-muted: #5f5d55;
 
   /* Semantic */
-  --color-accent: #1b6c80;
-  --color-primary: #1d1f20; /* near-black filled button */
+  --color-accent: #2456d6; /* blueprint blue */
+  --color-primary: #26251e; /* ink filled button */
   --color-negative: #c4242a;
   --color-positive: #1e7b4f;
   --color-warning: #92400e;
@@ -56,32 +63,33 @@
   --color-pill-negative-fg: #831c1e;
   --color-pill-warning-bg: #fffbeb;
   --color-pill-warning-fg: #92400e;
-  --color-pill-neutral-bg: #ebedee;
-  --color-pill-neutral-fg: #353736;
+  --color-pill-neutral-bg: #e4e2dc;
+  --color-pill-neutral-fg: #3a3831;
 
-  /* Radii (rounded-card / rounded-control / rounded-sheet) */
-  --radius-card: 8px;
-  --radius-control: 6px;
+  /* Radii — panels/sheet 16, cards 12, controls square (print-shop stationery) */
+  --radius-card: 12px;
+  --radius-control: 0px;
   --radius-sheet: 16px;
 }
 
 /*
  * Canonical plain tokens — one custom property per direction.json token.
- * --ground is the warm-stone override of the direction's #f9fbfc; the
- * context bundle's print-shop stone is authoritative.
+ * --ground is the dealt stone #dfdedb; --surface stays white so the chart
+ * sheet is always exactly what prints.
  */
 :root {
-  --ground: #f7f6f2;
+  --ground: #dfdedb;
   --surface: #ffffff;
-  --raised: #f4f6f8;
-  --active: #ebedee;
-  --border: #e8eaec;
-  --rule: #f0f1f2;
-  --control: #cdced1;
-  --text: #131416;
-  --muted: #5d5f60;
-  --accent: #1b6c80;
-  --primary: #1d1f20;
+  --raised: #f0eee9;
+  --active: #e4e2dc;
+  --well: #d3d2ce;
+  --border: #d6d4ce;
+  --rule: #e8e6e1;
+  --control: #b3b1aa;
+  --text: #26251e;
+  --muted: #5f5d55;
+  --accent: #2456d6;
+  --primary: #26251e;
   --negative: #c4242a;
   --positive: #1e7b4f;
   --warning: #92400e;
@@ -93,12 +101,12 @@
   --pill-negative-fg: #831c1e;
   --pill-warning-bg: #fffbeb;
   --pill-warning-fg: #92400e;
-  --pill-neutral-bg: #ebedee;
-  --pill-neutral-fg: #353736;
+  --pill-neutral-bg: #e4e2dc;
+  --pill-neutral-fg: #3a3831;
 
   /* Shape + density */
-  --radius-card: 8px;
-  --radius-control: 6px;
+  --radius-card: 12px;
+  --radius-control: 0px;
   --radius-sheet: 16px;
   --sheet-inset: 8px;
   --gap: 24px;
@@ -111,16 +119,20 @@
   --text-kpi: 28px;
   --text-body: 14px;
   --text-small: 12px;
+
+  /* Type families (mirrors @theme) */
+  --font-text: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Base element defaults — layered so utilities always win over them */
 @layer base {
   html {
-    /* Symmetric page margins when a scrollbar is present (landing + app). */
-    scrollbar-gutter: stable;
+    /* (No scrollbar-gutter: a reserved gutter skews every centered box's
+       right margin; the landing always scrolls, the app never does.) */
   }
   body {
-    font-family: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-text);
     background-color: var(--ground);
     color: var(--text);
     -webkit-font-smoothing: antialiased;

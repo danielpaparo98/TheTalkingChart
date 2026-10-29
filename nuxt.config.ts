@@ -15,12 +15,14 @@ export default defineNuxtConfig({
     buildAssetsDir: 'assets',
     head: {
       link: [
-        // IBM Plex Sans 400/500/600 — preconnect both font hosts, then the stylesheet
+        // Barlow Condensed 700 (display) + Barlow 400/500/600 (text) — the dealt
+        // faces (.taste-skill/direction.json seed 756865226). Preconnect both
+        // font hosts, then the stylesheet.
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap',
+          href: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Barlow:wght@400;500;600&display=swap',
         },
       ],
     },

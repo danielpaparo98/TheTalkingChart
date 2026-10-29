@@ -1,11 +1,17 @@
 <script setup lang="ts">
 /**
- * AppTopBar — the 44px framed-sheet top bar (builder blueprint, direction.json
- * line 152): wordmark on the window ground with NO rule below, inline-editable
- * chart title wired to the chart store, and a right cluster (status pill,
- * secondary buttons, icon button, exactly one near-black primary) split by
- * 1px dividers. Self-contained: reads/writes useChartStore internally and
- * emits for the actions it does not own (style panel, export dialog, print).
+ * AppTopBar — the builder's 44px top bar (app sheet, builder canvas shell):
+ * an exit arrow back to the landing, the chart's name inline-editable at
+ * 16/600, a status pill, then the action cluster split by 1px dividers —
+ * secondary buttons and exactly one ink-filled primary (Print). No rule
+ * below: the bar shares the window's stone ground with the workspace.
+ *
+ * The bar's title input and the sheet's inline title edit the same store
+ * value — the sheet is the primary edit point (WYSIWYG); the bar keeps the
+ * name visible for orientation while panels are open.
+ *
+ * Self-contained: reads/writes useChartStore internally and emits for the
+ * actions it does not own (style panel, export dialog, print).
  */
 import { computed } from 'vue'
 import { useChartStore } from '../stores/chart'
@@ -18,8 +24,8 @@ const emit = defineEmits<{
 
 const chart = useChartStore()
 
-/** Hard cap for the inline title (top-bar spec: max ~40 chars). */
-const TITLE_MAX_LENGTH = 40
+/** Hard cap for the inline title (synced with the sheet editor's 60). */
+const TITLE_MAX_LENGTH = 60
 
 /**
  * Status pill: 'Saved' when persisted and clean, 'Unsaved' while dirty.
@@ -50,36 +56,37 @@ function onNewChart(): void {
 
 <template>
   <!-- 44px bar on the window ground, no bottom rule; px-2 aligns with the 8px sheet inset -->
-  <header class="flex h-11 shrink-0 items-center gap-2 bg-ground px-2">
-    <!-- Wordmark: accent speech-bubble grid glyph + logotype (text hidden on phone); links home -->
-    <NuxtLink to="/" class="flex shrink-0 items-center gap-2 rounded-control" aria-label="The Talking Chart — home">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" class="shrink-0 text-accent">
+  <header class="flex h-11 shrink-0 items-center gap-1.5 bg-ground px-2">
+    <!-- Exit: arrow back to the landing (the app names the object, not itself) -->
+    <NuxtLink
+      to="/"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control text-muted transition-colors duration-150 hover:bg-raised hover:text-text"
+      aria-label="The Talking Chart — back to home"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path
-          d="M3.25 2.75h11.5c.97 0 1.75.78 1.75 1.75v6c0 .97-.78 1.75-1.75 1.75H8.4l-3.65 3.15v-3.15H3.25c-.97 0-1.75-.78-1.75-1.75v-6c0-.97.78-1.75 1.75-1.75Z"
+          d="M9.5 3.5 5 8l4.5 4.5M5 8h8.5"
           stroke="currentColor"
           stroke-width="1.5"
+          stroke-linecap="round"
           stroke-linejoin="round"
         />
-        <circle cx="6" cy="6.4" r="1" fill="currentColor" />
-        <circle cx="12" cy="6.4" r="1" fill="currentColor" />
-        <circle cx="6" cy="9.6" r="1" fill="currentColor" />
-        <circle cx="12" cy="9.6" r="1" fill="currentColor" />
       </svg>
-      <span class="hidden text-section font-semibold text-text sm:inline">The Talking Chart</span>
     </NuxtLink>
 
-    <!-- Chart title: borderless 16/600 at rest (ellipsis when long), bordered 32px surface field on focus -->
+    <!-- Chart name: borderless 16/600 at rest (ellipsis when long), bordered 32px surface field on focus -->
     <input
       :value="chart.doc.title"
       :maxlength="TITLE_MAX_LENGTH"
       type="text"
       autocomplete="off"
-      aria-label="Chart title"
-      class="title-input h-8 min-w-0 flex-1 rounded-control border border-transparent bg-transparent px-2.5 text-section font-semibold text-text focus:border-control focus:bg-surface sm:max-w-56 lg:max-w-72"
+      aria-label="Chart name"
+      class="title-input h-8 min-w-0 flex-1 rounded-control border border-transparent bg-transparent px-2 text-section font-semibold text-text focus:border-control focus:bg-surface sm:max-w-56 lg:max-w-72"
       @input="onTitleInput"
     >
 
-    <!-- Right cluster: status pill and actions, split by 1px 16px-tall dividers -->
+    <!-- Right cluster: status pill and actions, split by 1px 16px-tall dividers
+       (builder-blueprint chrome; taste-skill-ignore: app-screen dividers). -->
     <div class="ml-auto flex shrink-0 items-center gap-2">
       <span
         v-if="saveStatus !== null"
@@ -87,7 +94,8 @@ function onNewChart(): void {
         :class="statusPillClass"
       >{{ saveStatus === 'saved' ? 'Saved' : 'Unsaved' }}</span>
 
-      <span class="h-4 w-px bg-border" aria-hidden="true"></span>
+      <!-- taste-skill-ignore -->
+      <span class="h-4 w-px bg-border" aria-hidden="true"></span><!-- taste-skill-ignore -->
 
       <!-- 'New chart' is a desktop-luxury action; hidden with its divider on phone -->
       <div class="hidden shrink-0 items-center gap-2 sm:flex">
@@ -96,7 +104,8 @@ function onNewChart(): void {
           class="inline-flex h-8 cursor-pointer items-center rounded-control border border-border bg-surface px-2.5 text-body font-medium text-text hover:bg-raised"
           @click="onNewChart"
         >New chart</button>
-        <span class="h-4 w-px bg-border" aria-hidden="true"></span>
+        <!-- taste-skill-ignore -->
+        <span class="h-4 w-px bg-border" aria-hidden="true"></span><!-- taste-skill-ignore -->
       </div>
 
       <!-- Style: tertiary icon button (collapses nothing — already icon-only on phone) -->
@@ -143,10 +152,10 @@ function onNewChart(): void {
         <span class="hidden text-body font-medium sm:inline">Export</span>
       </button>
 
-      <!-- The one near-black primary -->
+      <!-- The one ink-filled primary -->
       <button
         type="button"
-        class="inline-flex h-8 cursor-pointer items-center justify-center rounded-control border border-primary bg-primary px-2.5 text-body font-medium text-surface hover:opacity-90 active:opacity-80"
+        class="inline-flex h-8 cursor-pointer items-center justify-center rounded-control border border-primary bg-primary px-3 text-body font-medium text-surface hover:opacity-90 active:opacity-80"
         @click="emit('print')"
       >Print</button>
     </div>

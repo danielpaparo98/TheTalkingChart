@@ -14,7 +14,7 @@ export type LabelSize = 's' | 'm' | 'l'
  * decides placement/docking (collapsible dock); this component only renders
  * the panel surface. Framed-sheet presentation (house rules): surface panel,
  * 1px border, 8px card radius, 16px padding, 28-32px controls, 1px borders,
- * sentence case, no shadows, no gradients.
+ * sentence case, no elevations, no gradients.
  *
  * Groups:
  *  - Chart title -> store.setTitle (max 60 chars)

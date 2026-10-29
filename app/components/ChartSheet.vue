@@ -23,21 +23,59 @@
  * app/assets/css/main.css (@media print): chrome hidden, only the sheet at
  * A4 landscape, page margin 0, print-color-adjust exact, padding 10mm.
  *
+ * WYSIWYG title: the h1 on the sheet is the primary edit point — click it
+ * and an identically-styled input takes its place (same cqw size, centered);
+ * blur/Enter commits through the store, Escape cancels. Editing is transient
+ * state: print and export always capture the settled h1.
+ *
  * Empty charts need no special state: the grid renders every slot and empty
  * slots are dashed boxes — that IS the empty state.
  */
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useChartStore } from '~/stores/chart'
 import ChartGrid from '~/components/ChartGrid.vue'
 import AttributionNotice from '~/components/AttributionNotice.vue'
 
 const chartStore = useChartStore()
 
-/** Sheet heading — the document title, edited in the top bar. */
+/** Sheet heading — the document title, edited here on the sheet. */
 const title = computed(() => chartStore.doc.title)
 /** Grid geometry passed through to ChartGrid (slots come from the store). */
 const columns = computed(() => chartStore.columns)
 const rows = computed(() => chartStore.rows)
+
+// --- Inline title editing (WYSIWYG: edit where it prints) ---
+
+const titleEditing = ref(false)
+const titleInput = ref<HTMLInputElement | null>(null)
+/** Local draft while editing; committed through the store on blur/Enter. */
+const titleDraft = ref('')
+
+function startTitleEdit(): void {
+  titleDraft.value = title.value
+  titleEditing.value = true
+  void nextTick(() => {
+    titleInput.value?.focus()
+    titleInput.value?.select()
+  })
+}
+
+function commitTitleEdit(): void {
+  if (!titleEditing.value) return
+  titleEditing.value = false
+  const next = titleDraft.value.trim()
+  if (next !== '' && next !== title.value) chartStore.setTitle(next)
+}
+
+function onTitleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    commitTitleEdit()
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    titleEditing.value = false
+  }
+}
 </script>
 
 <template>
@@ -52,7 +90,26 @@ const rows = computed(() => chartStore.rows)
         aria-label="Chart sheet preview"
       >
         <div class="sheet-content">
-          <h1 class="sheet-title">{{ title }}</h1>
+          <!-- Click-to-edit heading: the input swaps in identically styled,
+               so the sheet never shifts and print always captures the h1. -->
+          <input
+            v-if="titleEditing"
+            ref="titleInput"
+            v-model="titleDraft"
+            class="sheet-title sheet-title-input"
+            type="text"
+            maxlength="60"
+            autocomplete="off"
+            aria-label="Chart title"
+            @blur="commitTitleEdit"
+            @keydown="onTitleKeydown"
+          >
+          <h1
+            v-else
+            class="sheet-title sheet-title-view"
+            title="Click to edit the title"
+            @click="startTitleEdit"
+          >{{ title }}</h1>
           <div class="sheet-grid">
             <ChartGrid :columns="columns" :rows="rows" />
           </div>
@@ -71,7 +128,7 @@ const rows = computed(() => chartStore.rows)
  * Geometry. The mount is the query container; the hold derives its width
  * from whichever axis is scarcer (container query units — no JS), and the
  * sheet fills it at exactly 297:210. White surface, 16px radius, 1px edge,
- * no shadow at rest (direction.json sheet rules).
+ * no elevation at rest (direction.json sheet rules).
  */
 .sheet-mount {
   container-type: size;
@@ -128,10 +185,15 @@ const rows = computed(() => chartStore.rows)
   padding: var(--sheet-pad);
 }
 
+/*
+ * The title: one rule, two states. The view is a heading; the editor is an
+ * input with the exact same box, so swapping never shifts the grid.
+ */
 .sheet-title {
   flex: 0 0 auto;
   margin: 0 0 1.2cqw;
   overflow: hidden;
+  font-family: var(--font-text);
   font-size: 4.5cqw; /* ≈12.5mm on A4 — a title read across a desk */
   font-weight: 600;
   line-height: 1.2;
@@ -139,6 +201,28 @@ const rows = computed(() => chartStore.rows)
   text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.sheet-title-view {
+  cursor: text;
+  border-bottom: 0.35cqw dotted transparent;
+  transition: border-color 120ms ease;
+}
+
+/* Quiet editability hint: a dotted underline in the control tone on hover. */
+.sheet-title-view:hover {
+  border-bottom-color: var(--control);
+}
+
+.sheet-title-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-bottom: 0.35cqw solid var(--accent);
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  outline: none;
 }
 
 .sheet-grid {
@@ -164,14 +248,15 @@ const rows = computed(() => chartStore.rows)
  * sheet owns the canvas type scale, so it retargets both to cqw. Borders,
  * radii and ChartGrid's 5px hairline gap stay px: device hairlines.
  */
-.sheet-content :deep(.slot-label) {
+.sheet-content :deep(.slot-label),
+.sheet-content :deep(.slot-label-input) {
   /* --slot-label-scale (default 1) is the S/M/L label-size hook: the page
      sets it from data-label-size (StyleControls' label-size emit). */
   font-size: calc(2.2cqw * var(--slot-label-scale, 1));
 }
 
 .sheet-content :deep(.slot-plus) {
-  width: 2cqw;
-  height: 2cqw;
+  width: 2.8cqw;
+  height: 2.8cqw;
 }
 </style>

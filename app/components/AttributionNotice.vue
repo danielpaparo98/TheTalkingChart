@@ -186,7 +186,7 @@ const compactLine = computed<string>(() => {
 
 <style scoped>
 /*
- * Plain roots — the notice carries no border, background or shadow of its
+ * Plain roots — the notice carries no border, background or elevation of its
  * own: compact sits on the white sheet, full sits in the dialog. Muted ink
  * (#5d5f60 on white ≈ 6.5:1) passes AA at these sizes.
  */

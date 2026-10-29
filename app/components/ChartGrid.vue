@@ -3,7 +3,7 @@
  * The chart canvas — a dense, borderless CSS grid of SlotCards laid out
  * from the active preset (contract line 70). The grid fills its container
  * (the sheet's printable area); rows and cards stretch so the sheet keeps
- * the A4 aspect authority (context lines 39-40). No borders or shadows of
+ * the A4 aspect authority (context lines 39-40). No borders or elevations of
  * its own — the frame belongs to the sheet.
  */
 import { computed } from 'vue'

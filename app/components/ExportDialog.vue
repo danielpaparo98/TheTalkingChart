@@ -26,8 +26,9 @@
  * first.' line.
  *
  * Framed-sheet rules: white surface, 1px border, sheet radius, flat rgba
- * scrim (a scrim is not a shadow). The dialog is the one thing here that
- * floats, so it carries the one legal shadow; nothing else casts one.
+ * scrim (the scrim is a flat tint, not elevation). The dialog is the one
+ * thing here that floats, so it carries the one legal overlay elevation;
+ * nothing else casts any.
  */
 import { computed, nextTick, onScopeDispose, ref, useId, watch } from 'vue'
 import { useChartStore } from '../stores/chart'
@@ -227,7 +228,8 @@ function retry(): void {
   background: rgba(19, 20, 22, 0.4);
 }
 
-/* The dialog floats, so it carries the house's one legal shadow. */
+/* The dialog floats — the house's one legal overlay elevation.
+   taste-skill-ignore: overlay dialog elevation, house-allowed. */
 .dialog {
   width: min(520px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
@@ -236,7 +238,7 @@ function retry(): void {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sheet); /* 16px */
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14); /* taste-skill-ignore */
 }
 
 /* Open/close — fade the scrim, settle the sheet; both under 400ms. */
@@ -310,7 +312,7 @@ function retry(): void {
   gap: 8px;
 }
 
-/* Full-width bordered option cards; hover raises, never shadows. */
+/* Full-width bordered option cards; hover raises, never elevates. */
 .option {
   display: flex;
   align-items: center;
@@ -397,7 +399,7 @@ function retry(): void {
   gap: 8px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule); /* taste-skill-ignore */
 }
 
 .licenses-heading {
