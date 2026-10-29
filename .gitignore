@@ -45,3 +45,6 @@ design_iterations/
 
 # Generated icon bundles (built by scripts/build-icon-data.mjs)
 public/icon-data/
+
+# Design-skill validation artifacts
+.taste-skill/
