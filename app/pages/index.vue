@@ -588,7 +588,7 @@ useHead({
 }
 .hero-plate {
   min-height: 0;
-  border: 1px solid var(--border);
+  background: var(--raised);
   border-radius: var(--radius-card);
   display: flex;
   flex-direction: column;
@@ -596,7 +596,9 @@ useHead({
   justify-content: center;
   gap: 4px;
   padding: 4%;
+  transition: background-color 140ms ease;
 }
+.hero-plate:hover { background: var(--active); }
 .hero-plate-icon { width: 52%; height: auto; }
 .hero-plate-label {
   font-size: 13px;
@@ -947,7 +949,9 @@ useHead({
   .stripe-bar { width: 20px; }
   .hero-card-body { padding: 20px 16px 18px; }
   .hero-title { font-size: clamp(56px, 16vw, 96px); }
-  .hero-plates { max-width: none; }
+  /* Plates size naturally on phone (the card's height is auto, so a
+     flex-stretched grid would collapse and collide with the links). */
+  .hero-plates { flex: none; max-width: none; grid-template-rows: none; grid-auto-rows: 84px; }
   .section { padding: 88px 0; }
   .how {
     grid-template-columns: 1fr;
