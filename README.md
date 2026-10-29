@@ -32,7 +32,7 @@ library works offline.
 | State | Pinia + localStorage |
 | Icons | @iconify/vue with offline IconifyJSON bundles + ARASAAC API |
 | Export | html2canvas-pro + jsPDF; native browser print |
-| Fonts | IBM Plex Sans |
+| Fonts | Barlow + Barlow Condensed |
 | Deployment | GitHub Pages (via Nuxt generate) |
 
 ## Icon library
