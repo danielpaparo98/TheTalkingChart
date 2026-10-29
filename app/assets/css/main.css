@@ -136,9 +136,11 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Print — placeholder section only. A dedicated task owns the real print CSS:
- * hide chrome, print only the sheet at A4 landscape, exact colors, page
- * margin 0, print-color-adjust: exact.
+ * Print — the sheet is the page (context line 43; owned by chart-app-v2-09).
+ * Only [data-chart-sheet] prints, at true A4 landscape: page margin 0, all
+ * chrome hidden, exact colors. The geometry overrides must beat the sheet's
+ * scoped screen rules (class + scope attribute = higher specificity), hence
+ * !important on the pinned page-box properties only.
  * ------------------------------------------------------------------------- */
 .print-only {
   display: none;
@@ -147,5 +149,61 @@
 @media print {
   .print-only {
     display: block;
+  }
+
+  /* One edge-to-edge A4 landscape page. */
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0;
+    background-color: #fff;
+    /* The hidden chrome keeps its layout box; clip it so it cannot spill
+       onto a blank second page. The sheet is unaffected: fixed elements are
+       clipped by no ancestor overflow. */
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Hide every chrome box, then reveal only the sheet subtree. */
+  body * {
+    visibility: hidden;
+  }
+
+  [data-chart-sheet],
+  [data-chart-sheet] * {
+    visibility: visible;
+  }
+
+  /* Printable-area guide — lives outside the sheet root; never printed. */
+  .print-guide {
+    display: none;
+  }
+
+  [data-chart-sheet] {
+    /* Pin the sheet to the physical page box in mm instead of aspect-ratio
+       (Chrome ignores aspect-ratio on fixed-mm print pages). */
+    position: fixed !important;
+    inset: 0 !important;
+    width: 297mm !important;
+    height: 210mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    /* Screen padding is a percentage of sheet width; print uses the true
+       10mm margin. The (hidden) guide inherits the same var. */
+    --sheet-pad: 10mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Pastel card fills and ink survive — no browser print economizing. */
+  [data-chart-sheet] *,
+  [data-chart-sheet] *::before,
+  [data-chart-sheet] *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
