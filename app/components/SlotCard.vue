@@ -129,10 +129,12 @@ const ariaLabel = computed(() => (props.data.label !== '' ? props.data.label : '
   outline-offset: 2px;
 }
 
-/* Empty — dashed 1px box on the raised tone (house rule for builders). */
+/* Empty - dashed 1px box on the sheet itself (house rule for builders):
+   no fill, so an empty chart reads as paper, not as pre-filled cards. */
 .slot-card.is-empty {
   border-style: dashed;
-  background-color: var(--raised);
+  border-color: var(--control);
+  background-color: transparent;
 }
 
 /* Icon area stretches to everything the label doesn't need (~70%). */

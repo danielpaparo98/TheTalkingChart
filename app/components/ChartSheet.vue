@@ -52,7 +52,7 @@ const rows = computed(() => chartStore.rows)
         aria-label="Chart sheet preview"
       >
         <div class="sheet-content">
-          <h2 class="sheet-title">{{ title }}</h2>
+          <h1 class="sheet-title">{{ title }}</h1>
           <div class="sheet-grid">
             <ChartGrid :columns="columns" :rows="rows" />
           </div>

@@ -268,7 +268,7 @@ onUnmounted(() => {
       </div>
 
       <!-- License hint for the active set -->
-      <p v-if="catalog.activeSet !== null" class="mt-1.5 text-[11px] leading-4 text-muted">
+      <p v-if="catalog.activeSet !== null" class="mt-1.5 text-[12px] leading-4 text-muted">
         {{ catalog.activeSet.license }}{{ catalog.activeSetIsOnline ? ' — online' : '' }}
       </p>
 
@@ -433,16 +433,16 @@ onUnmounted(() => {
   color: var(--pill-neutral-fg);
 }
 
-/* Category chips: 24px neutral pills; the active one gets a 2px accent outline. */
+/* Category chips: 26px neutral pills; the active one gets a 2px accent outline. */
 .chip {
   display: inline-flex;
   align-items: center;
-  height: 24px;
-  padding: 0 8px;
+  height: 26px;
+  padding: 0 9px;
   border-radius: 9999px;
   background-color: var(--pill-neutral-bg);
   color: var(--pill-neutral-fg);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
