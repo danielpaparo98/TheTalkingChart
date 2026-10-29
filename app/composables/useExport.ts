@@ -94,6 +94,13 @@ function sanitizeTitle(title: string): string {
  * Rasterise the chart sheet to a canvas via html2canvas-pro.
  * The capture is plain (no `onclone` mutation) and composited on white, so
  * JPEG encoding for the PDF has no transparent pixels to turn black.
+ *
+ * The library is imported at RUNTIME from `public/vendor/` (copied
+ * untransformed by scripts/vendor-runtime-deps.mjs): the bundler-transformed
+ * copy of html2canvas-pro 2.5.2 hangs indefinitely, while the raw dist file
+ * captures in ~1.4s. The URL uses Nuxt's runtime `app.baseURL` — do NOT use
+ * `import.meta.env.BASE_URL` here: in Nuxt that is Vite's build base
+ * (`/…/assets/`), not the app's public path.
  */
 async function captureSheet(scale: number): Promise<CaptureResult> {
   const sheet = document.querySelector<HTMLElement>(SHEET_SELECTOR)
@@ -107,24 +114,44 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
     }
   }
   try {
-    const { default: html2canvas } = await import('html2canvas-pro')
-    const canvas = await html2canvas(sheet, {
+    const baseUrl = useRuntimeConfig().app.baseURL ?? '/'
+    const mod = (await import(/* @vite-ignore */ `${baseUrl}vendor/html2canvas-pro.esm.js`)) as {
+      default: typeof import('html2canvas-pro')['default']
+    }
+    const canvas = await mod.default(sheet, {
       scale,
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
     })
-    return { canvas, error: null }
+    return { canvas: rebindToLiveDocument(canvas), error: null }
   } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause)
     return {
       canvas: null,
       error: {
         reason: 'render-failed',
-        message: 'Rendering the chart sheet to an image failed.',
+        message: `Rendering the chart sheet to an image failed (${detail}).`,
         cause,
       },
     }
   }
+}
+
+/**
+ * Copy a canvas's bitmap onto a canvas owned by the LIVE main document.
+ * html2canvas-pro renders inside a temporary clone iframe and returns a
+ * canvas whose context belongs to that (then-removed) document; Chromium's
+ * `toBlob` never fires for such a canvas. Re-drawing the bitmap onto a
+ * freshly created canvas re-binds it to a live context.
+ */
+function rebindToLiveDocument(source: HTMLCanvasElement): HTMLCanvasElement {
+  const live = document.createElement('canvas')
+  live.width = source.width
+  live.height = source.height
+  const ctx = live.getContext('2d')
+  if (ctx) ctx.drawImage(source, 0, 0)
+  return live
 }
 
 /** Encode a canvas to a PNG blob; rejects if the canvas is tainted or encoding fails. */

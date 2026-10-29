@@ -9,7 +9,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "typecheck": "nuxi typecheck",
-    "postinstall": "nuxt prepare && node scripts/build-icon-data.mjs",
+    "postinstall": "nuxt prepare && node scripts/build-icon-data.mjs && node scripts/vendor-runtime-deps.mjs",
     "icons": "node scripts/build-icon-data.mjs --force"
   },
   "dependencies": {

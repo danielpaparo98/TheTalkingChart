@@ -127,8 +127,10 @@ function retry(): void {
 
 <template>
   <Teleport to="body">
-    <Transition name="dialog">
-      <div v-if="open" class="overlay" @click.self="requestClose">
+    <!-- No <Transition>: CSS-transition-driven close can freeze when rAF is
+         throttled (background tab) or transitions are disabled
+         (prefers-reduced-motion) — reliability beats a 160ms fade. -->
+    <div v-if="open" class="overlay" @click.self="requestClose">
         <div class="dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId">
           <header class="dialog-head">
             <h2 :id="titleId" class="dialog-title">Print or export</h2>
@@ -210,7 +212,6 @@ function retry(): void {
           </section>
         </div>
       </div>
-    </Transition>
   </Teleport>
 </template>
 
