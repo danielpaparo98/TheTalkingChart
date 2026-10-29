@@ -51,8 +51,8 @@ function onNewChart(): void {
 <template>
   <!-- 44px bar on the window ground, no bottom rule; px-2 aligns with the 8px sheet inset -->
   <header class="flex h-11 shrink-0 items-center gap-2 bg-ground px-2">
-    <!-- Wordmark: accent speech-bubble grid glyph + logotype (text hidden on phone) -->
-    <div class="flex shrink-0 items-center gap-2">
+    <!-- Wordmark: accent speech-bubble grid glyph + logotype (text hidden on phone); links home -->
+    <NuxtLink to="/" class="flex shrink-0 items-center gap-2 rounded-control" aria-label="The Talking Chart — home">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" class="shrink-0 text-accent">
         <path
           d="M3.25 2.75h11.5c.97 0 1.75.78 1.75 1.75v6c0 .97-.78 1.75-1.75 1.75H8.4l-3.65 3.15v-3.15H3.25c-.97 0-1.75-.78-1.75-1.75v-6c0-.97.78-1.75 1.75-1.75Z"
@@ -66,7 +66,7 @@ function onNewChart(): void {
         <circle cx="12" cy="9.6" r="1" fill="currentColor" />
       </svg>
       <span class="hidden text-section font-semibold text-text sm:inline">The Talking Chart</span>
-    </div>
+    </NuxtLink>
 
     <!-- Chart title: borderless 16/600 at rest (ellipsis when long), bordered 32px surface field on focus -->
     <input

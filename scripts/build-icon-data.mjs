@@ -181,6 +181,65 @@ async function main() {
     )
     const total = registry.reduce((sum, s) => sum + s.count, 0)
     console.log(`✓ sets.json — ${registry.length} sets, ${total.toLocaleString()} icons total`)
+
+    // Landing-page preview bundles: a curated PECS-friendly handful per set,
+    // emitted as tiny IconifyJSON collections the landing can render offline
+    // without pulling a full multi-megabyte set bundle.
+    const WISHLIST = {
+      mdi: [
+        'cup-water', 'food', 'home', 'help-circle-outline', 'emoticon-happy-outline',
+        'emoticon-sad-outline', 'toilet', 'bed', 'shirt-outline', 'bath', 'car', 'baseball',
+        'weather-sunny', 'hand-heart', 'music', 'dog-side', 'pill', 'fruit-cherries',
+      ],
+      'material-symbols': [
+        'home', 'restaurant', 'water-drop', 'favorite', 'help', 'sentiment-satisfied',
+        'sentiment-dissatisfied', 'baby-changing-station', 'bed', 'checkroom', 'directions-car',
+        'sports-baseball', 'light-mode', 'volunteer-activism', 'music-note', 'pets', 'medication',
+        'nutrition',
+      ],
+      tabler: [
+        'home', 'salad', 'droplet', 'heart', 'help', 'mood-smile', 'mood-sad', 'bed',
+        'shirt', 'bath', 'car', 'ball-basketball', 'sun', 'hand-heart', 'music', 'dog-bone',
+        'pill', 'apple',
+      ],
+      openmoji: [
+        'potable-water', 'rice-cracker', 'house', 'red-question-mark', 'grinning-face',
+        'crying-face', 'toilet', 'person-in-bed', 't-shirt', 'bathtub', 'automobile',
+        'soccer-ball', 'sun', 'flexed-biceps', 'musical-notes', 'dog-face', 'pill', 'cherries',
+      ],
+    }
+
+    const previews = []
+    for (const set of SETS) {
+      const icons = readSetFile(set.prefix, 'icons.json')
+      if (!icons) continue
+      const wish = WISHLIST[set.prefix] ?? []
+      const picked = {}
+      const aliases = {}
+      for (const name of wish) {
+        if (icons.icons?.[name]) picked[name] = icons.icons[name]
+        else if (icons.aliases?.[name]) {
+          const parent = icons.aliases[name].parent
+          if (icons.icons?.[parent]) {
+            picked[parent] = icons.icons[parent]
+            aliases[name] = { parent }
+          }
+        }
+      }
+      const collection = {
+        prefix: set.prefix,
+        width: icons.width,
+        height: icons.height,
+        icons: picked,
+        aliases,
+      }
+      await writeFile(
+        path.join(outDir, `preview-${set.prefix}.json`),
+        JSON.stringify(collection),
+      )
+      previews.push({ prefix: set.prefix, count: Object.keys(picked).length })
+      console.log(`✓ preview-${set.prefix}.json — ${Object.keys(picked).length} of ${wish.length} requested`)
+    }
   }
 }
 

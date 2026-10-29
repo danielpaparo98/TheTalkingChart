@@ -115,6 +115,10 @@
 
 /* Base element defaults — layered so utilities always win over them */
 @layer base {
+  html {
+    /* Symmetric page margins when a scrollbar is present (landing + app). */
+    scrollbar-gutter: stable;
+  }
   body {
     font-family: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
     background-color: var(--ground);
