@@ -1,9 +1,151 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — refined during the design phase.
- * Base palette kept intentionally neutral until the UI direction lands.
+ * Design tokens — "framed-sheet" direction (.taste-skill/direction.json, seed 491494898).
+ *
+ * Two blocks on purpose:
+ *  1. `@theme` — Tailwind v4 theme variables; generate the utilities used in
+ *     templates (bg-ground, bg-surface, text-muted, border-border,
+ *     rounded-sheet, text-title, ...).
+ *  2. `:root` — the canonical plain custom properties consumed by component
+ *     CSS (var(--ground), var(--sheet-inset), ...).
+ * Values are written literally in both places and kept in sync deliberately,
+ * so plain tokens never depend on Tailwind's variable emission.
+ *
+ * House rules (enforced later by lint/inspect): no gradients, no shadows at
+ * rest, 1px borders, sentence case, tabular-nums on counts.
  */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Type — IBM Plex Sans; Inter kept as fallback per the design phase */
+  --font-sans: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Type scale (direction.json font.sizes; KPI at 400 — semibold on labels) */
+  --text-title: 22px;
+  --text-title--line-height: 1.25;
+  --text-section: 16px;
+  --text-section--line-height: 1.4;
+  --text-kpi: 28px;
+  --text-kpi--line-height: 1.2;
+  --text-body: 14px;
+  --text-body--line-height: 1.5;
+  --text-small: 12px;
+  --text-small--line-height: 1.4;
+
+  /* Surface + ink */
+  --color-ground: #f7f6f2; /* warm stone (print-shop face; overrides direction #f9fbfc) */
+  --color-surface: #ffffff;
+  --color-raised: #f4f6f8;
+  --color-active: #ebedee;
+  --color-border: #e8eaec;
+  --color-rule: #f0f1f2;
+  --color-control: #cdced1;
+  --color-text: #131416;
+  --color-muted: #5d5f60;
+
+  /* Semantic */
+  --color-accent: #1b6c80;
+  --color-primary: #1d1f20; /* near-black filled button */
+  --color-negative: #c4242a;
+  --color-positive: #1e7b4f;
+  --color-warning: #92400e;
+
+  /* Pill pairs (bg, fg) — status pills in the top bar and elsewhere */
+  --color-pill-positive-bg: #dcfae5;
+  --color-pill-positive-fg: #04250e;
+  --color-pill-negative-bg: #ffedea;
+  --color-pill-negative-fg: #831c1e;
+  --color-pill-warning-bg: #fffbeb;
+  --color-pill-warning-fg: #92400e;
+  --color-pill-neutral-bg: #ebedee;
+  --color-pill-neutral-fg: #353736;
+
+  /* Radii (rounded-card / rounded-control / rounded-sheet) */
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-sheet: 16px;
+}
+
+/*
+ * Canonical plain tokens — one custom property per direction.json token.
+ * --ground is the warm-stone override of the direction's #f9fbfc; the
+ * context bundle's print-shop stone is authoritative.
+ */
+:root {
+  --ground: #f7f6f2;
+  --surface: #ffffff;
+  --raised: #f4f6f8;
+  --active: #ebedee;
+  --border: #e8eaec;
+  --rule: #f0f1f2;
+  --control: #cdced1;
+  --text: #131416;
+  --muted: #5d5f60;
+  --accent: #1b6c80;
+  --primary: #1d1f20;
+  --negative: #c4242a;
+  --positive: #1e7b4f;
+  --warning: #92400e;
+
+  /* Pill pairs: <tone>-bg / <tone>-fg */
+  --pill-positive-bg: #dcfae5;
+  --pill-positive-fg: #04250e;
+  --pill-negative-bg: #ffedea;
+  --pill-negative-fg: #831c1e;
+  --pill-warning-bg: #fffbeb;
+  --pill-warning-fg: #92400e;
+  --pill-neutral-bg: #ebedee;
+  --pill-neutral-fg: #353736;
+
+  /* Shape + density */
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-sheet: 16px;
+  --sheet-inset: 8px;
+  --gap: 24px;
+  --pad: 24px;
+  --control-height: 32px;
+
+  /* Type scale (mirrors the @theme --text-* values) */
+  --text-title: 22px;
+  --text-section: 16px;
+  --text-kpi: 28px;
+  --text-body: 14px;
+  --text-small: 12px;
+}
+
+/* Base element defaults — layered so utilities always win over them */
+@layer base {
+  body {
+    font-family: "IBM Plex Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+    background-color: var(--ground);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Visible focus — 2px accent outline, 2px offset (accessibility rule) */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures for counts, KPIs and other numeric UI */
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+ * Print — placeholder section only. A dedicated task owns the real print CSS:
+ * hide chrome, print only the sheet at A4 landscape, exact colors, page
+ * margin 0, print-color-adjust: exact.
+ * ------------------------------------------------------------------------- */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block;
+  }
 }

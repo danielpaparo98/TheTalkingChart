@@ -13,6 +13,17 @@ export default defineNuxtConfig({
     // Matches GitHub repo name so deployment "just works"
     baseURL: '/visual-communication-app/',
     buildAssetsDir: 'assets',
+    head: {
+      link: [
+        // IBM Plex Sans 400/500/600 — preconnect both font hosts, then the stylesheet
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap',
+        },
+      ],
+    },
   },
 
   nitro: {
