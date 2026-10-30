@@ -1,31 +1,25 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — "page-is-the-object" direction (.taste-skill/direction.json,
- * seed 756865226; app style "Framed sheet", .taste-skill/app/direction.json).
+ * Design tokens — "Mint poster" (design_iterations/design-system.md, v1).
  *
  * Two blocks on purpose:
  *  1. `@theme` — Tailwind v4 theme variables; generate the utilities used in
- *     templates (bg-ground, bg-surface, text-muted, border-border,
- *     rounded-sheet, text-title, ...).
+ *     templates (bg-ground, bg-surface, text-muted, border-border, ...).
  *  2. `:root` — the canonical plain custom properties consumed by component
- *     CSS (var(--ground), var(--sheet-inset), ...).
- * Values are written literally in both places and kept in sync deliberately,
- * so plain tokens never depend on Tailwind's variable emission.
+ *     CSS (var(--ground), var(--mint), ...).
+ * Values are written literally in both places and kept in sync deliberately.
  *
- * Palette "Stone and blueprint": stone paper carries the page, near-black ink,
- * one blueprint-blue accent (selection, links, the single filled action on the
- * landing). Two-colour print job proportions — accent stays under ~3%.
- *
- * House rules (enforced later by lint/inspect): no gradients, no shadows at
- * rest, 1px borders, sentence case, tabular-nums on counts.
+ * System: white paper, near-black ink, one mint accent, orange reserved for
+ * the thing that moves. Colour on the data (pictograms, card tints), never
+ * on chrome. No gradients, no glass; shadows only on what floats.
  */
 @theme {
-  /* Type — Barlow (text) + Barlow Condensed (display), the dealt faces */
-  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
+  /* Type — Work Sans (all UI + the chart sheet); Anton is landing-only */
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Arial Narrow", sans-serif;
 
-  /* Type scale (app chrome; KPI at 400 — semibold on labels) */
+  /* Type scale (app chrome) */
   --text-title: 22px;
   --text-title--line-height: 1.25;
   --text-section: 16px;
@@ -37,62 +31,87 @@
   --text-small: 12px;
   --text-small--line-height: 1.4;
 
-  /* Surface + ink */
-  --color-ground: #dfdedb; /* stone — the desk the sheet sits on */
-  --color-surface: #ffffff; /* paper — sheets and panels stay white (print truth) */
-  --color-raised: #f0eee9;
-  --color-active: #e4e2dc;
-  --color-well: #d3d2ce; /* builder canvas: one step darker than the ground */
-  --color-border: #d6d4ce;
-  --color-rule: #e8e6e1;
-  --color-control: #b3b1aa;
-  --color-text: #26251e;
-  --color-muted: #5f5d55;
+  /* Surfaces + ink */
+  --color-ground: #f3f8f0;        /* the desk: a whisper of mint */
+  --color-surface: #ffffff;       /* paper — sheets and panels */
+  --color-paper: #ffffff;
+  --color-ink: #000000;
+  --color-raised: #edf4e9;
+  --color-active: #e2efdc;
+  --color-well: #e7eee2;          /* canvas: one step from the desk */
+  --color-border: #e0e8da;
+  --color-rule: #f0f4ec;
+  --color-control: #c8d2c2;
+  --color-text: #131711;
+  --color-muted: #5c6657;
 
   /* Semantic */
-  --color-accent: #2456d6; /* blueprint blue */
-  --color-primary: #26251e; /* ink filled button */
+  --color-accent: #2e7d32;        /* deep green — selection, rings */
+  --color-primary: #131711;       /* ink filled button */
   --color-negative: #c4242a;
-  --color-positive: #1e7b4f;
+  --color-positive: #247b50;
   --color-warning: #92400e;
 
-  /* Pill pairs (bg, fg) — status pills in the top bar and elsewhere */
+  /* The poster colours (landing + card tints) */
+  --color-mint: #a7ff9c;
+  --color-mint-soft: #eafce6;
+  --color-orange: #ff6831;        /* the thing that moves */
+  --color-tint-mint: #e2f7da;
+  --color-tint-lemon: #fff3cf;
+  --color-tint-sky: #e4f1fd;
+  --color-tint-peach: #ffe8d9;
+  --color-tint-rose: #fde5ec;
+  --color-tint-lilac: #f3e8fd;
+
+  /* Pill pairs (bg, fg) — status pills */
   --color-pill-positive-bg: #dcfae5;
   --color-pill-positive-fg: #04250e;
   --color-pill-negative-bg: #ffedea;
   --color-pill-negative-fg: #831c1e;
   --color-pill-warning-bg: #fffbeb;
   --color-pill-warning-fg: #92400e;
-  --color-pill-neutral-bg: #e4e2dc;
-  --color-pill-neutral-fg: #3a3831;
+  --color-pill-neutral-bg: #e2efdc;
+  --color-pill-neutral-fg: #3a423a;
 
-  /* Radii — panels/sheet 16, cards 12, controls square (print-shop stationery) */
-  --radius-card: 12px;
-  --radius-control: 0px;
-  --radius-sheet: 16px;
+  /* Radii — controls 6, tiles 8, chart cards 14, panels/sheet 18 */
+  --radius-card: 14px;
+  --radius-control: 6px;
+  --radius-sheet: 18px;
 }
 
 /*
- * Canonical plain tokens — one custom property per direction.json token.
- * --ground is the dealt stone #dfdedb; --surface stays white so the chart
- * sheet is always exactly what prints.
+ * Canonical plain tokens — one custom property per design-system token.
+ * --surface stays white so the chart sheet is always exactly what prints.
  */
 :root {
-  --ground: #dfdedb;
+  --ground: #f3f8f0;
   --surface: #ffffff;
-  --raised: #f0eee9;
-  --active: #e4e2dc;
-  --well: #d3d2ce;
-  --border: #d6d4ce;
-  --rule: #e8e6e1;
-  --control: #b3b1aa;
-  --text: #26251e;
-  --muted: #5f5d55;
-  --accent: #2456d6;
-  --primary: #26251e;
+  --paper: #ffffff;               /* landing page ground */
+  --ink: #000000;                 /* landing text + primary blocks */
+  --raised: #edf4e9;
+  --active: #e2efdc;
+  --well: #e7eee2;
+  --border: #e0e8da;
+  --rule: #f0f4ec;
+  --control: #c8d2c2;
+  --text: #131711;
+  --muted: #5c6657;
+  --accent: #2e7d32;
+  --primary: #131711;
   --negative: #c4242a;
-  --positive: #1e7b4f;
+  --positive: #247b50;
   --warning: #92400e;
+
+  --mint: #a7ff9c;
+  --mint-soft: #eafce6;
+  --mint-deep: #2e7d32;
+  --orange: #ff6831;
+  --tint-mint: #e2f7da;
+  --tint-lemon: #fff3cf;
+  --tint-sky: #e4f1fd;
+  --tint-peach: #ffe8d9;
+  --tint-rose: #fde5ec;
+  --tint-lilac: #f3e8fd;
 
   /* Pill pairs: <tone>-bg / <tone>-fg */
   --pill-positive-bg: #dcfae5;
@@ -101,13 +120,13 @@
   --pill-negative-fg: #831c1e;
   --pill-warning-bg: #fffbeb;
   --pill-warning-fg: #92400e;
-  --pill-neutral-bg: #e4e2dc;
-  --pill-neutral-fg: #3a3831;
+  --pill-neutral-bg: #e2efdc;
+  --pill-neutral-fg: #3a423a;
 
   /* Shape + density */
-  --radius-card: 12px;
-  --radius-control: 0px;
-  --radius-sheet: 16px;
+  --radius-card: 14px;
+  --radius-control: 6px;
+  --radius-sheet: 18px;
   --sheet-inset: 8px;
   --gap: 24px;
   --pad: 24px;
@@ -121,16 +140,12 @@
   --text-small: 12px;
 
   /* Type families (mirrors @theme) */
-  --font-text: "Barlow", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-text: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Arial Narrow", sans-serif;
 }
 
 /* Base element defaults — layered so utilities always win over them */
 @layer base {
-  html {
-    /* (No scrollbar-gutter: a reserved gutter skews every centered box's
-       right margin; the landing always scrolls, the app never does.) */
-  }
   body {
     font-family: var(--font-text);
     background-color: var(--ground);

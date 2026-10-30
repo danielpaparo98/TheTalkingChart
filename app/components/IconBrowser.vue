@@ -245,10 +245,17 @@ function onSetChange(event: Event): void {
 }
 
 /**
- * Place on click — the product's core job, instant, no dialogs: selected slot
- * first (selection kept), else the first empty slot, else a quiet notice.
+ * Place on click — the product's core job, instant, no dialogs. Priority:
+ * the asking card (card-first flow), then the selected slot, then the
+ * first empty slot, else a quiet notice.
  */
 function place(iconRef: IconRef): void {
+  const asking = chart.askingSlot
+  if (asking !== null) {
+    chart.setSlotIcon(asking.id, iconRef)
+    emit('pick', iconRef)
+    return
+  }
   const selected = chart.selectedSlot
   if (selected !== null) {
     chart.setSlotIcon(selected.id, iconRef)

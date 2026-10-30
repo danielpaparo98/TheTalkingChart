@@ -150,6 +150,14 @@ const onLabelSizeKeydown = createRadioKeynav(
   () => labelSize.value,
   selectLabelSize,
 )
+
+/** New chart: clear everything, with the consequence named. */
+function onNewChart(): void {
+  if (window.confirm('Start a new chart? The current chart will be cleared.')) {
+    store.reset()
+    emit('close')
+  }
+}
 </script>
 
 <template>
@@ -241,5 +249,27 @@ const onLabelSizeKeydown = createRadioKeynav(
         </button>
       </div>
     </div>
+    <!-- New chart: the one destructive action, last, in its own group -->
+    <div class="flex flex-col gap-1.5">
+      <span class="text-body font-medium text-text">New chart</span>
+      <button
+        type="button"
+        class="new-chart"
+        @click="onNewChart"
+      >
+        Clear this chart and start over
+      </button>
+    </div>
   </section>
 </template>
+
+<style scoped>
+.new-chart {
+  height: 34px; padding: 0 14px;
+  border: none; border-radius: var(--radius-control);
+  background: #fdeeee; color: var(--negative);
+  font-size: 14px; font-weight: 500;
+  cursor: pointer;
+}
+.new-chart:hover { background: #fbdedb; }
+</style>

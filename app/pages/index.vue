@@ -1,25 +1,22 @@
 <script setup lang="ts">
 /**
- * Landing page — "The page is the object" (direction seed 756865226).
+ * Landing — "Mint poster", the locked one-screen design.
  *
- * The idea: the printed PECS chart this tool produces becomes the page
- * itself. The hero deals the blueprint "Striped card beside the room": a
- * printed card (paper on stone, ink/paper stripe band as the only ornament)
- * beside a full-height photograph of the subject's world — an adult pointing
- * at a page while a child leans in, which is this product's own gesture.
- * Sections are further pieces of the same stationery: a receipt slip with a
- * zigzag cut (how it works), an index-with-preview of the icon sources, the
- * builder fragment (data-ui), people plates, and the footer as the back of
- * the object.
+ * A small open-source tool gets a small page: what it is, what it looks
+ * like, one button, licences. The only poster moment after the hero is
+ * the dark band — the three verbs and a sliding carousel of the product's
+ * own pictogram cards (OpenMoji + ARASAAC, the two sets therapists ask
+ * for by name).
  *
- * Type: Barlow Condensed 700 for display, Barlow for text. Colour: stone
- * ground, paper panels, near-black ink; the blueprint blue is the single
- * accent — the one filled button and almost nothing else.
+ * Anton appears exactly twice (wordmark + hero line); everything else is
+ * Work Sans. Motion: rise entrances + the carousel; all off under
+ * reduced motion.
  */
 import { addCollection, Icon } from '@iconify/vue'
 import type { IconifyJSON } from '@iconify/vue'
 
-// Real icon counts, straight from the generated registry (single small fetch).
+const config = useRuntimeConfig()
+
 interface IconSetMeta {
   prefix: string
   label: string
@@ -27,49 +24,12 @@ interface IconSetMeta {
   attribution: string
   count: number
 }
-const config = useRuntimeConfig()
 const sets = ref<IconSetMeta[]>([])
 
-/** Preview icon names per set, for the index-with-preview frame. */
-const PREVIEW_NAMES: Record<string, string[]> = {
-  openmoji: [
-    'house', 'rice-cracker', 'potable-water', 'grinning-face', 'crying-face', 'dog-face',
-    'soccer-ball', 'musical-notes', 'sun', 't-shirt', 'bathtub', 'pill',
-  ],
-  mdi: [
-    'home', 'food', 'cup-water', 'help-circle-outline', 'emoticon-happy-outline',
-    'emoticon-sad-outline', 'bed', 'bath', 'car', 'music', 'pill', 'fruit-cherries',
-  ],
-  'material-symbols': [
-    'home', 'restaurant', 'water-drop', 'favorite', 'help', 'sentiment-satisfied',
-    'bed', 'checkroom', 'directions-car', 'music-note', 'medication', 'pets',
-  ],
-  tabler: [
-    'home', 'salad', 'droplet', 'heart', 'help', 'mood-smile', 'mood-sad', 'bed',
-    'bath', 'car', 'music', 'pill',
-  ],
-}
-const PREVIEW_LABELS: Record<string, string> = {
-  openmoji: 'OpenMoji',
-  mdi: 'Material Design Icons',
-  'material-symbols': 'Material Symbols',
-  tabler: 'Tabler Icons',
-}
-
-function previewNames(prefix: string): string[] {
-  return PREVIEW_NAMES[prefix] ?? []
-}
-
-const activePreviewLabel = computed(() => PREVIEW_LABELS[activePreview.value] ?? activePreview.value)
-const activePreviewCount = computed(() => {
-  const set = sets.value.find((s) => s.prefix === activePreview.value)
-  return set ? `${set.count.toLocaleString()} icons` : ''
-})
-
+/** Real set counts for the sources line, from the generated registry. */
 onMounted(async () => {
   try {
     const data = await $fetch<{ sets: IconSetMeta[] }>(`${config.app.baseURL}icon-data/sets.json`)
-    // Presentation order for the index: friendliest pictograms first.
     const order = ['openmoji', 'mdi', 'material-symbols', 'tabler']
     sets.value = order
       .map((prefix) => data.sets.find((s) => s.prefix === prefix))
@@ -77,105 +37,60 @@ onMounted(async () => {
   } catch {
     sets.value = []
   }
-
-  // Entrances: transform-only rise — content is never hidden (no-JS safe),
-  // so measurement/scrapers always see the full page.
-  const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-rise]'))
-  targets.forEach((el) => {
-    const rect = el.getBoundingClientRect()
-    if (rect.top < window.innerHeight * 0.92) {
-      el.classList.add('rise-in')
-      return
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('rise-in')
-            observer.unobserve(entry.target)
-          }
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px' },
-    )
-    observer.observe(el)
-  })
 })
 
-// --- Index with preview (the signature move) -------------------------------
+/** The carousel cards: core vocabulary, drawn from the preview bundle. */
+const CARDS: ReadonlyArray<{ icon: string; label: string; tint: string }> = [
+  { icon: 'openmoji:rice-cracker', label: 'eat', tint: '' },
+  { icon: 'openmoji:potable-water', label: 'drink', tint: 'tint-mint' },
+  { icon: 'openmoji:red-question-mark', label: 'help', tint: '' },
+  { icon: 'openmoji:house', label: 'home', tint: 'tint-sky' },
+  { icon: 'openmoji:grinning-face', label: 'happy', tint: '' },
+  { icon: 'openmoji:crying-face', label: 'sad', tint: 'tint-peach' },
+  { icon: 'openmoji:dog-face', label: 'dog', tint: '' },
+  { icon: 'openmoji:soccer-ball', label: 'play', tint: 'tint-lemon' },
+  { icon: 'openmoji:musical-notes', label: 'music', tint: '' },
+  { icon: 'openmoji:sun', label: 'outside', tint: 'tint-mint' },
+  { icon: 'openmoji:t-shirt', label: 'clothes', tint: '' },
+  { icon: 'openmoji:bathtub', label: 'bath', tint: 'tint-sky' },
+  { icon: 'openmoji:toilet', label: 'toilet', tint: '' },
+  { icon: 'openmoji:automobile', label: 'car', tint: 'tint-orange' },
+  { icon: 'openmoji:cherries', label: 'fruit', tint: '' },
+  { icon: 'openmoji:pill', label: 'medicine', tint: 'tint-orange' },
+  { icon: 'openmoji:flexed-biceps', label: 'strong', tint: '' },
+  { icon: 'openmoji:person-in-bed', label: 'sleep', tint: 'tint-mint' },
+]
 
-const PREVIEW_ORDER = ['openmoji', 'mdi', 'material-symbols', 'tabler'] as const
-const activePreview = ref<string>('openmoji')
-const loadedPreviews = new Set<string>()
-const previewLoaded = ref<Record<string, boolean>>({})
+/** ARASAAC raster pictograms (the therapist-standard set), verified IDs. */
+const ARASAAC_CARDS = [
+  { src: 'https://static.arasaac.org/pictograms/2558/2558_300.png', label: 'cook' },
+  { src: 'https://static.arasaac.org/pictograms/3430/3430_300.png', label: 'crossing' },
+  { src: 'https://static.arasaac.org/pictograms/2951/2951_300.png', label: 'bricks' },
+]
 
-async function loadPreview(prefix: string): Promise<void> {
-  if (loadedPreviews.has(prefix)) return
-  loadedPreviews.add(prefix)
+/** The full sliding strip: OpenMoji glyphs + ARASAAC rasters, duplicated for the loop. */
+const marqueeCards = [
+  ...CARDS.map((c) => ({ kind: 'svg' as const, icon: c.icon, label: c.label, tint: c.tint })),
+  ...ARASAAC_CARDS.map((a) => ({ kind: 'img' as const, icon: a.src, label: a.label, tint: '' })),
+]
+
+/** Load the preview bundle so hero + carousel glyphs render offline. */
+const heroReady = ref(false)
+onMounted(async () => {
   try {
-    const data = await $fetch<IconifyJSON>(`${config.app.baseURL}icon-data/preview-${prefix}.json`)
+    const data = await $fetch<IconifyJSON>(`${config.app.baseURL}icon-data/preview-openmoji.json`)
     addCollection(data)
-    previewLoaded.value[prefix] = true
-  } catch {
-    loadedPreviews.delete(prefix)
-  }
-}
-
-function activatePreview(prefix: string): void {
-  activePreview.value = prefix
-  void loadPreview(prefix)
-}
-
-onMounted(() => {
-  void loadPreview('openmoji')
-})
-
-/** Hero pictogram plates — real OpenMoji glyphs, PECS core vocabulary. */
-const heroCards = [
-  { icon: 'openmoji:potable-water', label: 'drink' },
-  { icon: 'openmoji:rice-cracker', label: 'eat' },
-  { icon: 'openmoji:red-question-mark', label: 'help' },
-  { icon: 'openmoji:house', label: 'home' },
-  { icon: 'openmoji:grinning-face', label: 'happy' },
-  { icon: 'openmoji:crying-face', label: 'sad' },
-  { icon: 'openmoji:dog-face', label: 'dog' },
-  { icon: 'openmoji:soccer-ball', label: 'play' },
-]
-
-/** Stripe band: alternating ink/paper bars, 28px each, as filled blocks. */
-const STRIPE_BARS = 26
-
-// --- Hero photograph: the slow crossfade (the signature move) --------------
-
-const heroPhotos = [
-  {
-    src: `${config.app.baseURL}photos/reading-together.jpg`,
-    alt: 'A child leans in as an adult points at the page of an open book',
-  },
-  {
-    src: `${config.app.baseURL}photos/reading-soft.jpg`,
-    alt: 'The same quiet table, the focus softening onto the child\'s face',
-  },
-]
-const livePhoto = ref(0)
-
-onMounted(() => {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  let flip = true
-  window.setInterval(() => {
-    if (document.hidden) return
-    livePhoto.value = flip ? 1 : 0
-    flip = !flip
-  }, 6000)
+    heroReady.value = true
+  } catch { /* glyphs stay blank; labels still carry the words */ }
 })
 
 useHead({
-  title: 'The Talking Chart — Free printable PECS communication charts',
+  title: 'The Talking Chart — free printable picture communication charts',
   meta: [
     {
       name: 'description',
       content:
-        'Pick from 50,000 open-source icons, place them on a chart, label each card, and print. Free, no sign-up, works offline. Built for speech therapists, parents and teachers.',
+        'For speech therapists, parents and teachers. Pick from 50,000 open-source icons, place them on a chart, label each card, and print. Free, no sign-up, works offline.',
     },
   ],
 })
@@ -183,785 +98,225 @@ useHead({
 
 <template>
   <div class="landing">
-    <!-- ============================== HERO ============================== -->
-    <!-- "Striped card beside the room": printed card left, photograph right. -->
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-card">
-        <!-- The subject's stripe: ink and paper bars, the only ornament. -->
-        <div class="stripe" aria-hidden="true">
-          <span
-            v-for="n in STRIPE_BARS"
-            :key="n"
-            class="stripe-bar"
-            :class="n % 2 === 1 ? 'is-ink' : 'is-paper'"
-          ></span>
-        </div>
-
-        <div class="hero-card-body">
-          <h1 id="hero-title" class="hero-title">Print them<br >a voice.</h1>
-          <p class="hero-sub">
-            Free, printable communication charts. Pick from 50,000
-            open-source icons, label each card, and print. No sign-up,
-            no cost.
-          </p>
-
-          <NuxtLink to="/app" class="btn-primary hero-cta">Make your chart</NuxtLink>
-
-          <!-- Tipped-in plates: the product's own pictograms on the card. -->
-          <div class="hero-plates" data-rise>
-            <div v-for="card in heroCards" :key="card.label" class="hero-plate">
-              <Icon :icon="card.icon" class="hero-plate-icon" aria-hidden="true" />
-              <span class="hero-plate-label">{{ card.label }}</span>
-            </div>
-          </div>
-
-          <nav class="hero-links" aria-label="Page sections">
-            <a href="#how">How it works</a>
-            <a href="#icons">The icons</a>
-            <a href="#builder">The builder</a>
-          </nav>
-        </div>
+    <header class="top wrap">
+      <span class="wordmark">Talking Chart</span>
+      <div class="top-right">
+        <a class="gh" href="https://github.com/papar/visual-communication-app" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          <span>Open source</span>
+        </a>
+        <NuxtLink class="btn" to="/app">Make your chart</NuxtLink>
       </div>
+    </header>
 
-      <div class="hero-photo" data-rise>
-        <img
-          v-for="(photo, i) in heroPhotos"
-          :key="photo.src"
-          :src="photo.src"
-          :alt="photo.alt"
-          width="1920"
-          height="1277"
-          :class="{ 'is-live': livePhoto === i }"
-          :loading="i === 0 ? 'eager' : 'lazy'"
-        >
+    <!-- ================= HERO (centred) ================= -->
+    <section class="hero wrap">
+      <h1 class="rise">Print them<br>a <span class="hl">voice.</span></h1>
+      <p class="sub rise d1">
+        For speech therapists, parents and teachers. Pick from 50,000
+        open-source icons, place them on the grid, label each card, and
+        print — the sheet you see is the sheet that prints.
+      </p>
+      <div class="cta-row rise d2">
+        <NuxtLink class="btn mint" to="/app">Make your chart</NuxtLink>
+        <span class="fact">No sign-up · No cost · Works offline</span>
       </div>
     </section>
 
-    <!-- ========================= HOW IT WORKS =========================== -->
-    <!-- The process printed as a receipt slip: dot leaders, zigzag cut. -->
-    <section id="how" class="section" aria-labelledby="how-title">
-      <div class="inner how">
-        <div class="how-copy">
-          <h2 data-rise id="how-title" class="section-title">How it works</h2>
-          <p data-rise class="section-body">
-            Three steps, on one screen. Everything runs in your browser:
-            the icon library works offline, and nothing leaves your device.
-          </p>
-        </div>
-        <div class="receipt" data-rise>
-          <div class="receipt-row">
-            <span class="receipt-step">Browse the library</span>
-            <span class="receipt-dots" aria-hidden="true"></span>
-            <span class="receipt-value num">1 min</span>
-          </div>
-          <div class="receipt-row">
-            <span class="receipt-step">Place icons on the grid</span>
-            <span class="receipt-dots" aria-hidden="true"></span>
-            <span class="receipt-value num">2 min</span>
-          </div>
-          <div class="receipt-row">
-            <span class="receipt-step">Label every card</span>
-            <span class="receipt-dots" aria-hidden="true"></span>
-            <span class="receipt-value num">2 min</span>
-          </div>
-          <div class="receipt-row">
-            <span class="receipt-step">Print or save as PDF</span>
-            <span class="receipt-dots" aria-hidden="true"></span>
-            <span class="receipt-value num">instant</span>
-          </div>
-          <div class="receipt-total">
-            A finished chart in under five minutes.
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- ================= DARK BANNER: VERBS + ICON CAROUSEL ================= -->
+    <section class="band fade" aria-label="How it works">
+      <p class="verbs rise d3">
+        <b>Pick</b> a picture<span class="d">·</span><b>place</b> it on the
+        grid<span class="d">·</span><b>print</b> it.
+      </p>
 
-    <!-- ====================== ICON SOURCES (index) ====================== -->
-    <!-- Signature move: rows are the index; pointing previews the set. -->
-    <section id="icons" class="section" aria-labelledby="sources-title">
-      <div class="inner">
-        <div class="sources-copy" data-rise>
-          <h2 data-rise id="sources-title" class="section-title">Fifty thousand icons</h2>
-          <p data-rise class="section-body">
-            Five open-source libraries, one search box. Every icon is free to
-            use, and the four bundled sets work offline.
-          </p>
-        </div>
-        <div class="sources-index">
-          <ul class="sources-rows" data-rise>
-            <li v-for="set in sets" :key="set.prefix">
-              <button
-                type="button"
-                class="source-row"
-                :class="{ 'is-active': activePreview === set.prefix }"
-                @mouseenter="activatePreview(set.prefix)"
-                @focus="activatePreview(set.prefix)"
-                @click="activatePreview(set.prefix)"
+      <div class="marquee">
+        <div class="m-track">
+          <template v-for="set in 2" :key="set">
+            <div
+              v-for="card in marqueeCards"
+              :key="`${set}-${card.label}`"
+              class="m-card"
+              :class="card.tint"
+            >
+              <img
+                v-if="card.kind === 'img'"
+                class="om"
+                :src="card.icon"
+                alt=""
+                draggable="false"
               >
-                <span class="source-name">{{ set.label }}</span>
-                <span class="source-count num">{{ set.count.toLocaleString() }}</span>
-              </button>
-            </li>
-            <li>
-              <div class="source-row source-row-static">
-                <span class="source-name">ARASAAC <span class="source-online">online</span></span>
-                <span class="source-count num">~13,000</span>
-              </div>
-            </li>
-          </ul>
-          <div class="sources-preview" data-rise>
-            <div class="preview-frame">
-              <template v-if="previewLoaded[activePreview]">
-                <Icon
-                  v-for="name in previewNames(activePreview)"
-                  :key="activePreview + name"
-                  :icon="`${activePreview}:${name}`"
-                  class="preview-icon"
-                  aria-hidden="true"
-                />
-              </template>
-              <p v-else class="preview-loading">Loading…</p>
+              <Icon v-else class="om" :icon="card.icon" aria-hidden="true" />
+              <span>{{ card.label }}</span>
             </div>
-            <p class="preview-caption">{{ activePreviewLabel }} — {{ activePreviewCount }}</p>
-          </div>
+          </template>
         </div>
       </div>
     </section>
 
-    <!-- ========================= THE BUILDER ============================ -->
-    <section id="builder" class="section" aria-labelledby="builder-title">
-      <div class="inner">
-        <div class="builder-copy" data-rise>
-          <h2 data-rise id="builder-title" class="section-title">Meet the builder</h2>
-          <p data-rise class="section-body">
-            One screen: browse pictures on the left, arrange the chart on the
-            right. Click a picture or drag it onto a card, click a label to
-            rename it, click the title to retitle the chart, and what you
-            see on the sheet is exactly what prints.
-          </p>
-          <NuxtLink to="/app" class="btn-primary builder-cta">Open the builder</NuxtLink>
-        </div>
-        <!-- Working-product fragment (data-ui): the builder's own borders. -->
-        <div class="builder-fragment" data-rise data-ui aria-label="Preview of the chart builder">
-          <div class="fragment-bar">
-            <span class="fragment-back" aria-hidden="true"></span>
-            <span class="fragment-title">Mia's chart</span>
-            <span class="fragment-pill">Saved</span>
-          </div>
-          <div class="fragment-body">
-            <div class="fragment-browser">
-              <div class="fragment-search">Search the icon library</div>
-              <div class="fragment-tiles">
-                <span v-for="n in 12" :key="n" class="fragment-tile">
-                  <Icon :icon="heroCards[(n - 1) % heroCards.length]!.icon" aria-hidden="true" />
-                </span>
-              </div>
-            </div>
-            <div class="fragment-well">
-              <div class="fragment-sheet">
-                <p class="fragment-sheet-title">Mia's chart</p>
-                <div class="fragment-grid">
-                  <div class="fragment-cell is-filled">
-                    <Icon icon="openmoji:potable-water" aria-hidden="true" />
-                    <span>drink</span>
-                  </div>
-                  <div class="fragment-cell is-filled">
-                    <Icon icon="openmoji:house" aria-hidden="true" />
-                    <span>home</span>
-                  </div>
-                  <div class="fragment-cell"></div>
-                  <div class="fragment-cell"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== WHO IT IS FOR (people) ===================== -->
-    <section class="section" aria-labelledby="people-title">
-      <div class="inner">
-        <h2 data-rise id="people-title" class="section-title">Made for every kind of voice</h2>
-        <p data-rise class="section-body people-body">
-          Picture Exchange Communication systems give words to people who
-          communicate without speech: in speech therapy, classrooms, and at
-          home. A printed chart fits a kitchen table, a classroom wall or a
-          therapy bag.
-        </p>
-        <div class="people-plates">
-          <figure class="people-plate" data-rise>
-            <img
-              :src="`${config.app.baseURL}photos/reading-together.jpg`"
-              width="900" height="600" loading="lazy"
-              alt="A child leans in as an adult points at the page of an open book"
-            >
-            <figcaption>At the kitchen table</figcaption>
-          </figure>
-          <figure class="people-plate" data-rise>
-            <img
-              src="https://picsum.photos/id/669/900/600"
-              width="900" height="600" loading="lazy"
-              alt="A person in a mustard jacket standing in mild fog, out of doors"
-            >
-            <figcaption>Out and about</figcaption>
-          </figure>
-          <figure class="people-plate" data-rise>
-            <img
-              src="https://picsum.photos/id/1011/900/600"
-              width="900" height="600" loading="lazy"
-              alt="A person paddling a canoe on a turquoise lake edged by forest"
-            >
-            <figcaption>On the water</figcaption>
-          </figure>
-          <figure class="people-plate" data-rise>
-            <img
-              src="https://picsum.photos/id/338/900/600"
-              width="900" height="600" loading="lazy"
-              alt="A person in a hooded coat facing a misty sea"
-            >
-            <figcaption>Wherever words are needed</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======================== CTA + FOOTER ============================ -->
-    <!-- The back of the object: final action, then the colophon. -->
-    <section class="cta" aria-labelledby="cta-title">
-      <div class="inner">
-        <h2 data-rise id="cta-title" class="cta-title">Print someone a voice today.</h2>
-        <NuxtLink to="/app" class="btn-primary cta-btn" data-rise>Open the builder</NuxtLink>
-        <p class="cta-note">free · no sign-up · works offline</p>
-      </div>
-    </section>
-
-    <footer class="colophon">
-      <div class="inner">
-        <p class="colophon-mark">
-          The Talking Chart ·
-          <NuxtLink to="/app" class="colophon-app-link">Open the app</NuxtLink>
-        </p>
-        <p class="colophon-line">
-          Free, printable PECS communication charts. Open source under
+    <!-- ================= FOOTER ================= -->
+    <footer class="foot">
+      <div class="wrap foot-inner rise">
+        <p>
+          <strong style="color: var(--ink)">The Talking Chart</strong> — free,
+          printable AAC picture communication charts. Open source under
           <a href="https://github.com/papar/visual-communication-app" rel="noopener">MIT</a>.
-          Built by Daniel Paparo to help individuals with communication difficulties.
+          Built by Daniel Paparo.
         </p>
-        <p class="colophon-line">
-          Icons: Material Design Icons by Pictogrammers (Apache-2.0) · Material
-          Symbols by Google (Apache-2.0) · Tabler Icons (MIT) · OpenMoji
-          (CC BY-SA 4.0) · ARASAAC pictograms (CC BY-NC-SA 4.0, fetched online
-          with attribution). Photos: "Child attentively listens as an adult
-          shares a story from a book" by Shixart1985 (CC BY 2.0, via Wikimedia
-          Commons); Luke Pamer, Patryk Sobczak, Roberto Nickson (Unsplash).
-        </p>
-        <p class="colophon-line colophon-fine">
-          Barlow &amp; Barlow Condensed by Jeremy Tribby (SIL OFL 1.1), served
-          by Google Fonts.
+        <p>
+          Icons: OpenMoji (CC BY-SA 4.0) · Material Design Icons (Apache-2.0) ·
+          Material Symbols (Apache-2.0) · Tabler (MIT) · ARASAAC (CC BY-NC-SA 4.0).
+          Font: Work Sans (SIL OFL 1.1).
         </p>
       </div>
     </footer>
-  </div>
+</div>
 </template>
 
 <style scoped>
-/* ============================ tokens =============================
-   Stone ground, paper panels, ink text; blueprint blue as the single
-   accent (the filled button). Square controls, 16px object radii. */
-
 .landing {
-  background: var(--ground);
-  color: var(--text);
-  font-family: var(--font-text);
   min-height: 100dvh;
-}
-
-.inner {
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: 16px;
-}
-
-/* Entrances: transform-only rise — content stays visible, no hiding. */
-[data-rise] {
-  translate: 0 24px;
-  transition: translate 0.6s ease;
-}
-[data-rise].rise-in { translate: 0 0; }
-@media (prefers-reduced-motion: reduce) {
-  [data-rise] { translate: none; transition: none; }
-}
-
-/* ============================== hero ============================= */
-/* Blueprint: 50/50 split, one 16px gutter, 16px outer margins. The photo
-   sticks; the card is the printed object. */
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px;
-  min-height: calc(100dvh - 32px);
-}
-
-.hero-card {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-text);
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-radius: var(--radius-sheet);
-  overflow: hidden;
-  min-height: 0;
+  overflow-x: hidden;
 }
+.wrap { width: 100%; max-width: 900px; margin: 0 auto; padding: 0 28px; }
+a { color: inherit; }
 
-/* The stripe: alternating ink and paper bars, 28px each, filled blocks. */
-.stripe {
-  display: flex;
-  flex: none;
-  height: 56px;
-  overflow: hidden;
+/* entrances */
+.rise { animation: rise 640ms ease backwards; }
+.rise.d1 { animation-delay: 80ms; }
+.rise.d2 { animation-delay: 160ms; }
+.rise.d3 { animation-delay: 240ms; }
+.fade { animation: fadein 700ms ease backwards; }
+@keyframes rise {
+  from { translate: 0 14px; opacity: 0; }
+  to { translate: 0 0; opacity: 1; }
 }
-.stripe-bar { width: 28px; height: 100%; }
-.stripe-bar.is-ink { background: var(--text); }
-.stripe-bar.is-paper { background: var(--surface); }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
-.hero-card-body {
-  flex: 1 1 auto; /* auto basis: the body must never collapse at auto heights */
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 28px 32px 24px;
-}
-
-.hero-title {
-  margin: 22px 0 0;
+/* ---------------- top bar ---------------- */
+.top { display: flex; align-items: center; justify-content: space-between; padding-block: 26px; }
+.wordmark {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(64px, 8.6vw, 124px);
-  line-height: 0.9;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-  color: var(--text);
+  font-weight: 400; text-transform: uppercase;
+  font-size: 19px; letter-spacing: 0.02em;
 }
+.top-right { display: flex; align-items: center; gap: 22px; }
+.gh {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 500; text-decoration: none; color: var(--muted);
+}
+.gh:hover { color: var(--ink); }
+.btn {
+  display: inline-flex; align-items: center;
+  background: var(--ink); color: #fff;
+  text-decoration: none; border: none; cursor: pointer;
+  font-size: 14px; font-weight: 600;
+  padding: 10px 18px; border-radius: 8px;
+  transition: opacity 140ms ease;
+}
+.btn:hover { opacity: 0.85; }
+.btn.mint { background: var(--mint); color: var(--ink); font-size: 15px; padding: 14px 26px; }
+.btn.mint:hover { opacity: 1; background: #96f28a; }
 
-.hero-sub {
-  width: fit-content;
-  max-width: 40ch;
-  margin: 18px 0 0;
-  font-size: 17px;
-  line-height: 1.5;
-  color: var(--text);
-}
-
-/* The one filled button on the page — blueprint blue, square, print-shop. */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent);
-  color: #fff;
-  text-decoration: none;
-  border: none;
-  border-radius: 0;
-  padding: 14px 26px;
-  font-size: 16px;
-  font-weight: 500;
-  transition: background 140ms ease, translate 140ms ease;
-}
-.btn-primary:hover { background: #1d47b8; }
-.btn-primary:active { translate: 0 1px; }
-.hero-cta { margin-top: 22px; }
-.num { font-variant-numeric: tabular-nums; }
-
-/* Tipped-in plates: the pictograms as small printed cards. */
-.hero-plates {
-  flex: 1 1 0;
-  min-height: 0;
-  width: 100%;
-  max-width: 520px;
-  margin-top: 26px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 8px;
-}
-.hero-plate {
-  min-height: 0;
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4%;
-  transition: background-color 140ms ease;
-}
-.hero-plate:hover { background: var(--active); }
-.hero-plate-icon { width: 52%; height: auto; }
-.hero-plate-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.hero-links {
-  flex: none;
-  display: flex;
-  gap: 24px;
-  margin-top: 22px;
-}
-.hero-links a {
-  font-size: 15px;
-  color: var(--text);
-  text-decoration: none;
-  transition: text-decoration-color 120ms ease;
-}
-.hero-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-/* The room: full-height photograph, sticky, slow crossfade. */
-.hero-photo {
-  position: sticky;
-  top: 16px;
-  height: calc(100dvh - 32px);
-  border-radius: var(--radius-sheet);
-  overflow: hidden;
-  background: var(--well);
-}
-.hero-photo img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 1.6s ease;
-}
-.hero-photo img.is-live { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  /* Only the first frame shows, instantly. */
-  .hero-photo img { transition: none; }
-  .hero-photo img + img { display: none; }
-}
-
-/* ======================= shared section bits ====================== */
-
-.section {
-  padding: 96px 0;
-}
-.section-title {
-  margin: 0;
+/* ---------------- hero ---------------- */
+.hero { text-align: center; padding: 56px 0 88px; }
+.hero h1 {
+  margin: 0 auto;
+  max-width: 14ch;
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(34px, 4.4vw, 56px);
-  line-height: 0.95;
-  letter-spacing: -0.01em;
+  font-weight: 400; text-transform: uppercase;
+  font-size: clamp(52px, 8.4vw, 120px);
+  line-height: 0.94;
 }
-.section-body {
-  margin: 16px 0 0;
-  font-size: 17px;
-  line-height: 1.55;
-  color: var(--text);
+.hero h1 .hl {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  background: var(--mint);
+  border-radius: 0.08em;
+  padding: 0 0.14em;
+}
+.sub {
+  margin: 28px auto 0;
   max-width: 52ch;
+  font-size: 18px;
+  line-height: 1.6;
+  color: #1a1a1a;
 }
+.cta-row { display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 36px; }
+.fact { font-size: 16px; color: var(--muted); }
 
-/* ========================= how it works =========================== */
+/* ---------------- dark banner: verbs + carousel ---------------- */
+.band { background: var(--ink); color: #fff; padding: 72px 0 76px; overflow: hidden; }
+.verbs {
+  margin: 0 auto; text-align: center;
+  font-size: clamp(17px, 2.2vw, 21px);
+  font-weight: 500; line-height: 1.5;
+  padding: 0 28px;
+}
+.verbs .d { color: var(--mint); font-weight: 700; padding: 0 0.45em; }
+.verbs b { font-weight: 700; }
 
-.how {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 48px;
-  align-items: center;
-}
-.receipt {
-  background: var(--surface);
-  border-radius: var(--radius-card);
-  padding: 24px 16px 0;
-  max-width: 480px;
-  justify-self: end;
-  width: 100%;
-  /* zigzag receipt bottom edge */
-  clip-path: polygon(
-    0 0, 100% 0, 100% calc(100% - 12px),
-    95% 100%, 90% calc(100% - 12px), 85% 100%, 80% calc(100% - 12px),
-    75% 100%, 70% calc(100% - 12px), 65% 100%, 60% calc(100% - 12px),
-    55% 100%, 50% calc(100% - 12px), 45% 100%, 40% calc(100% - 12px),
-    35% 100%, 30% calc(100% - 12px), 25% 100%, 20% calc(100% - 12px),
-    15% 100%, 10% calc(100% - 12px), 5% 100%, 0 calc(100% - 12px)
-  );
-}
-.receipt-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 13px 8px;
-  font-size: 16px;
-}
-.receipt-step { flex: none; }
-.receipt-dots {
-  flex: 1 1 0;
-  border-bottom: 4px dotted var(--control);
-  translate: 0 -4px;
-}
-.receipt-value { flex: none; color: var(--muted); }
-.receipt-total {
-  margin-top: 16px;
-  background: var(--text);
-  color: var(--surface);
-  padding: 13px 12px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-/* ========================= icon sources =========================== */
-
-.sources-copy .section-body { max-width: 52ch; }
-.sources-index {
-  margin-top: 48px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 48px;
-  align-items: start;
-}
-.sources-rows { list-style: none; margin: 0; padding: 0; }
-.source-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  background: none;
-  border: none;
-  border-radius: 0;
-  padding: 16px 14px;
-  font: inherit;
-  font-size: 20px;
-  font-weight: 500;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: opacity 0.24s ease, background 0.24s ease;
-}
-.source-row:hover { background: var(--raised); }
-.source-row.is-active { background: var(--surface); }
-.source-row-static { cursor: default; }
-.source-count { font-size: 14px; color: var(--muted); }
-.source-online {
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--muted);
-  border: 1px solid var(--control);
-  border-radius: 999px;
-  padding: 2px 8px;
-  margin-left: 8px;
-  vertical-align: 2px;
-}
-/* dim the rows that are not being pointed at (index-with-preview) */
-.sources-rows:has(.source-row.is-active) .source-row:not(.is-active) { opacity: 0.45; }
-
-.sources-preview { position: sticky; top: 32px; }
-.preview-frame {
-  aspect-ratio: 4 / 3;
-  background: var(--surface);
-  border-radius: var(--radius-card);
-  padding: 24px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 1fr;
-  gap: 12px;
-  place-items: center;
-}
-.preview-icon { width: 64px; height: 64px; }
-.preview-loading { font-size: 14px; color: var(--muted); }
-.preview-caption { margin: 10px 2px 0; font-size: 14px; color: var(--muted); }
-
-/* ========================== builder =============================== */
-
-.builder-copy .section-body { max-width: 52ch; }
-.builder-cta { margin-top: 24px; }
-.builder-fragment {
-  margin-top: 56px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sheet);
+.marquee {
+  margin-top: 52px;
   overflow: hidden;
-  font-size: 13px;
+  animation: rise 640ms ease backwards 240ms;
+  /* soft edges: painted via mask (not a gradient fill — taste-skill-ignore) */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); /* taste-skill-ignore */
+          mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); /* taste-skill-ignore */
 }
-.fragment-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--ground);
+.m-track {
+  display: flex; gap: 18px; width: max-content; padding: 6px 0 10px;
+  animation: slide 44s linear infinite;
+  will-change: transform;
 }
-.fragment-back {
-  width: 14px;
-  height: 2px;
-  background: var(--muted);
-  /* a quiet exit-arrow stand-in */
-  clip-path: polygon(100% 0, 100% 100%, 0 50%);
-  transform: scaleX(-1);
+.marquee:hover .m-track { animation-play-state: paused; }
+@keyframes slide { to { transform: translateX(-50%); } }
+.m-card {
+  flex: none; width: 124px;
+  background: var(--paper); color: var(--ink);
+  border-radius: 14px;
+  padding: 16px 8px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
-.fragment-title { font-weight: 600; font-size: 14px; }
-.fragment-pill {
-  margin-left: auto;
-  background: var(--pill-positive-bg);
-  color: var(--pill-positive-fg);
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 12px;
-}
-.fragment-body {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 12px;
-  padding: 12px;
-}
-.fragment-browser { border: 1px solid var(--border); border-radius: var(--radius-card); padding: 10px; }
-.fragment-search {
-  border: 1px solid var(--control);
-  padding: 6px 10px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.fragment-tiles { margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.fragment-tile {
-  aspect-ratio: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  display: grid;
-  place-items: center;
-  color: var(--text);
-}
-.fragment-tile svg { width: 60%; height: 60%; }
-/* the canvas well behind the sheet, exactly like the real builder */
-.fragment-well {
-  background: var(--well);
-  border-radius: var(--radius-card);
-  padding: 12px;
-  display: flex;
-}
-.fragment-sheet {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-}
-.fragment-sheet-title { margin: 0 0 10px; text-align: center; font-weight: 600; font-size: 15px; }
-.fragment-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 5px;
-  min-height: 150px;
-}
-.fragment-cell {
-  border: 1px dashed var(--control);
-  border-radius: var(--radius-card);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 12px;
-}
-.fragment-cell.is-filled { border-style: solid; border-color: var(--border); }
-.fragment-cell svg { width: 42%; height: 42%; }
+.m-card .om { width: 48px; height: 48px; }
+.m-card span { font-size: 13px; font-weight: 600; }
+.m-card.tint-mint { background: var(--mint); }
+.m-card.tint-lemon { background: #fff3d6; }
+.m-card.tint-sky { background: #e4f2fd; }
+.m-card.tint-peach { background: #ffe3d6; }
+.m-card.tint-orange { background: #ffd8c2; }
 
-/* ============================ people ============================== */
+/* ---------------- footer ---------------- */
+.foot { margin-top: auto; padding: 30px 0 36px; }
+.foot-inner {
+  display: flex; flex-wrap: wrap; gap: 10px 48px;
+  align-items: baseline; justify-content: space-between;
+  font-size: 16px; line-height: 1.6; color: var(--muted);
+}
+.foot-inner p { margin: 0; max-width: 70ch; }
+.foot-inner a { text-decoration: underline; text-underline-offset: 3px; }
+.foot-inner a:hover { color: var(--ink); }
 
-.people-body { max-width: 56ch; }
-.people-plates {
-  margin-top: 48px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-.people-plate { margin: 0; }
-.people-plate img {
-  width: 100%;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-  border-radius: var(--radius-card);
-  display: block;
-  /* one moving picture: slow drift on the plates */
-  transition: transform 1.2s ease;
-}
-.people-plate:hover img { transform: scale(1.03); }
-.people-plate figcaption {
-  margin-top: 8px;
-  font-size: 14px;
-  color: var(--muted);
+@media (prefers-reduced-motion: reduce) {
+  .m-track { animation: none; }
+  .rise, .fade { animation: none; }
 }
 
-/* ============================ cta ================================= */
-
-.cta {
-  padding: 96px 0;
-  text-align: center;
-}
-.cta-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(40px, 5.6vw, 72px);
-  line-height: 0.95;
-  letter-spacing: -0.01em;
-}
-.cta-btn { margin-top: 32px; }
-.cta-note { margin: 14px 0 0; font-size: 14px; color: var(--muted); }
-
-/* ========================== colophon ============================== */
-/* The back of the object: ink ground, paper text. */
-
-.colophon {
-  background: var(--text);
-  color: #cfcdc6;
-  padding: 56px 0;
-}
-.colophon-mark { margin: 0; font-weight: 600; color: var(--surface); font-size: 16px; }
-.colophon-app-link { color: var(--surface); }
-.colophon-line { margin: 12px 0 0; font-size: 14px; line-height: 1.6; max-width: 65ch; }
-.colophon-line a { color: var(--surface); }
-.colophon-fine { font-size: 14px; color: #9b9992; }
-
-/* ============================ phone =============================== */
-
-@media (max-width: 900px) {
-  .hero {
-    grid-template-columns: 1fr;
-    padding: 16px;
-    min-height: 0;
-  }
-  /* The photograph comes first, the card overlaps its bottom edge. */
-  .hero-photo {
-    order: -1;
-    position: static;
-    height: 48svh;
-  }
-  .hero-card { margin-top: -24px; }
-  .stripe { height: 40px; }
-  .stripe-bar { width: 20px; }
-  .hero-card-body { padding: 20px 16px 18px; }
-  .hero-title { font-size: clamp(56px, 16vw, 96px); }
-  /* Plates size naturally on phone (the card's height is auto, so a
-     flex-stretched grid would collapse and collide with the links). */
-  .hero-plates { flex: none; max-width: none; grid-template-rows: none; grid-auto-rows: 84px; }
-  .section { padding: 88px 0; }
-  .how {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
-  .receipt { justify-self: stretch; max-width: none; }
-  .sources-index { grid-template-columns: 1fr; gap: 32px; }
-  .sources-preview { position: static; }
-  .builder-fragment .fragment-body { grid-template-columns: 1fr; }
-  .fragment-browser { display: none; }
-  .people-plates { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 720px) {
+  .wrap { padding: 0 20px; }
+  .top { padding-block: 20px; }
+  .top-right .gh span { display: none; }
+  .hero { padding-block: 32px 64px; }
+  .hero h1 { font-size: clamp(44px, 12vw, 84px); }
+  .sub { font-size: 16px; }
+  .cta-row { flex-direction: column; gap: 16px; }
+  .band { padding: 56px 0 60px; }
+  .m-card { width: 104px; }
+  .m-card .om { width: 40px; height: 40px; }
 }
 </style>

@@ -125,6 +125,11 @@ export const useChartStore = defineStore('chart', () => {
   const doc = ref<ChartDoc>(createDoc())
   /** UI-only selection; intentionally not part of ChartDoc (never persisted). */
   const selectedSlotId = ref<string | null>(null)
+  /**
+   * The empty card that is currently "asking" for its word (the grown
+   * word picker). UI-only, never persisted, never set for filled cards.
+   */
+  const askingSlotId = ref<string | null>(null)
   const dirty = ref(false)
   const saved = ref(false)
 
@@ -138,6 +143,15 @@ export const useChartStore = defineStore('chart', () => {
     if (selectedSlotId.value === null) return null
     return doc.value.slots.find((slot) => slot.id === selectedSlotId.value) ?? null
   })
+  /** Asking card (empty slot with its word picker open), or null. */
+  const askingSlot = computed<SlotData | null>(() => {
+    if (askingSlotId.value === null) return null
+    return doc.value.slots.find((slot) => slot.id === askingSlotId.value) ?? null
+  })
+  /** How many cards hold a picture — drives the top-bar progress. */
+  const placedCount = computed(
+    () => doc.value.slots.filter((slot) => slot.icon !== null).length,
+  )
 
   // --- Persistence ---
 
@@ -251,6 +265,7 @@ export const useChartStore = defineStore('chart', () => {
     slot.icon = null
     slot.label = ''
     slot.color = null
+    if (askingSlotId.value === slotId) askingSlotId.value = null
     touch()
   }
 
@@ -260,9 +275,43 @@ export const useChartStore = defineStore('chart', () => {
     selectedSlotId.value = slotId
   }
 
+  /**
+   * Open (or close) the word picker on an empty card. Only truly empty,
+   * existing slots may ask; asking also clears the filled-card selection —
+   * the two edit surfaces never open at once.
+   */
+  function askSlot(slotId: string | null): void {
+    if (slotId === null) {
+      askingSlotId.value = null
+      return
+    }
+    const slot = findSlot(slotId)
+    if (slot === undefined || slot.icon !== null) return
+    selectedSlotId.value = null
+    askingSlotId.value = slotId
+  }
+
+  /**
+   * Auto-advance: after placing into a card, the next empty card asks.
+   * Returns the id it advanced to (null when the chart is complete).
+   */
+  function askNextAfter(slotId: string): string | null {
+    const index = doc.value.slots.findIndex((slot) => slot.id === slotId)
+    for (let step = 1; step <= doc.value.slots.length; step += 1) {
+      const slot = doc.value.slots[(index + step) % doc.value.slots.length]
+      if (slot !== undefined && slot.icon === null) {
+        askingSlotId.value = slot.id
+        return slot.id
+      }
+    }
+    askingSlotId.value = null
+    return null
+  }
+
   function reset(): void {
     doc.value = createDoc()
     selectedSlotId.value = null
+    askingSlotId.value = null
     dirty.value = true
     saved.value = false
   }
@@ -290,6 +339,7 @@ export const useChartStore = defineStore('chart', () => {
     // state
     doc,
     selectedSlotId,
+    askingSlotId,
     dirty,
     saved,
     // derived
@@ -297,6 +347,8 @@ export const useChartStore = defineStore('chart', () => {
     rows,
     gridSize,
     selectedSlot,
+    askingSlot,
+    placedCount,
     // actions
     setTitle,
     setGrid,
@@ -305,6 +357,8 @@ export const useChartStore = defineStore('chart', () => {
     setSlotColor,
     clearSlot,
     selectSlot,
+    askSlot,
+    askNextAfter,
     reset,
   }
 })

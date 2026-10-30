@@ -59,8 +59,9 @@ const pictogramSrc = computed(() => {
   height: 72px;
   padding: 10px;
   background: var(--surface);
-  border: 1px solid var(--accent);
+  border: 2.5px solid var(--orange);
   border-radius: var(--radius-card);
+  rotate: -3deg;
   pointer-events: none;
 }
 

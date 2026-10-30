@@ -1,25 +1,17 @@
 <script setup lang="ts">
 /**
- * One chart card — filled (icon + label), empty (dashed placeholder) and
- * selected (2px accent outline) states of a slot (contract line 70).
+ * One chart card — the sheet's atom. Four states:
+ *  - filled: pastel card (icon + label), the printed thing itself;
+ *  - filled + selected: deep-green ring, label dotted for rename,
+ *    the compact editor anchors to it;
+ *  - empty: it ASKS — a mint ⊕ above "add a picture"; clicking opens
+ *    the word picker (store.askSlot);
+ *  - empty + asking ("growing"): the card has opened into the picker.
  *
- * WYSIWYG editing, on the sheet:
- *  - The card is a drop target: `data-slot-drop` marks the hit area for the
- *    palette's pointer drag (useIconDrag); a hovered drag highlights the
- *    cell in the accent.
- *  - The label edits in place: selecting the card, then clicking its label,
- *    swaps in an identically-sized input (sized by ChartSheet's cqw rule);
- *    blur/Enter commits, Escape cancels. The input is a sibling overlay of
- *    the button (never nested interactive elements).
- *
- * Selection goes straight through the chart store; clicking a selected card
- * deselects it (the editor closes with it). A native <button> provides the
- * button role, tab order and Enter/Space activation by default, so the card
- * is keyboard-selectable without extra handlers.
- *
- * Icon color: bundle icons draw in the inherited ink (currentColor);
- * openmoji color icons carry their own palette and render plain — the
- * component never forces a color onto the glyph itself.
+ * Every card is a drop target (data-slot-drop) for the palette drag.
+ * Label editing stays inline on the card: click the label of a selected
+ * card and an identically-sized input swaps in — WYSIWYG, the sheet is
+ * the editor. Selection and asking are store UI state.
  */
 import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
@@ -31,6 +23,7 @@ import type { SlotData } from '~/types/chart'
 const props = defineProps<{
   /** The slot to render. Named `data` — `slot` is a reserved-ish word in Vue templates. */
   data: SlotData
+  /** Card tint (hex) applied as the pastel fill; null = white. */
 }>()
 
 const chartStore = useChartStore()
@@ -38,6 +31,7 @@ const { dragHoverSlotId, wasJustDragged } = useIconDrag()
 
 const hasIcon = computed(() => props.data.icon !== null)
 const isSelected = computed(() => chartStore.selectedSlotId === props.data.id)
+const isAsking = computed(() => chartStore.askingSlotId === props.data.id)
 const isDropHover = computed(() => dragHoverSlotId.value === props.data.id)
 
 /** Full Iconify name for bundle icons ('' when the slot is empty or arasaac-sourced). */
@@ -62,11 +56,23 @@ const cardStyle = computed(() => {
 
 /** Accessible name: the label, a filled-but-unlabelled card, or an empty slot. */
 const ariaLabel = computed(() => {
-  if (!hasIcon.value) return 'Empty card'
+  if (!hasIcon.value) return 'Empty card — add a picture'
   return props.data.label !== '' ? props.data.label : 'Card without label'
 })
 
-// --- Inline label editing (WYSIWYG: edit where it prints) ---
+// --- interactions ---
+
+function onCardClick(): void {
+  if (wasJustDragged()) return
+  if (!hasIcon.value) {
+    // the empty card asks for its word
+    chartStore.askSlot(props.data.id)
+    return
+  }
+  chartStore.selectSlot(isSelected.value ? null : props.data.id)
+}
+
+// --- inline label editing (WYSIWYG: edit where it prints) ---
 
 const labelEditing = ref(false)
 const labelDraft = ref('')
@@ -106,24 +112,22 @@ function onLabelKeydown(event: KeyboardEvent): void {
 watch(isSelected, (selected) => {
   if (!selected) labelEditing.value = false
 })
-
-/** Click toggles selection — the editor opens and closes with the card. */
-function onCardClick(): void {
-  if (wasJustDragged()) return
-  chartStore.selectSlot(isSelected.value ? null : props.data.id)
-}
 </script>
 
 <template>
   <div
     class="slot-cell"
     :data-slot-drop="data.id"
-    :class="{ 'is-drop': isDropHover, 'is-selected': isSelected }"
+    :class="{ 'is-drop': isDropHover, 'is-selected': isSelected, 'is-asking': isAsking }"
   >
     <button
       type="button"
       class="slot-card"
-      :class="{ 'is-empty': !hasIcon, 'is-selected': isSelected }"
+      :class="{
+        'is-empty': !hasIcon,
+        'is-selected': isSelected,
+        'is-asking': isAsking,
+      }"
       :style="cardStyle"
       :aria-label="ariaLabel"
       :aria-pressed="isSelected"
@@ -145,23 +149,11 @@ function onCardClick(): void {
           class="slot-label"
           :class="{ 'is-editable': isSelected }"
           @click="onLabelClick"
-        >{{ data.label !== '' ? data.label : 'Add label' }}</span>
+        >{{ data.label !== '' ? data.label : 'add a label' }}</span>
       </template>
       <template v-else>
-        <span class="slot-plus" aria-hidden="true">
-          <!--
-            Inline SVG plus (renders instantly, no Iconify bundle round-trip —
-            empty charts must never show a blank slot).
-          -->
-          <svg viewBox="0 0 16 16" fill="none">
-            <path
-              d="M8 3.25v9.5M3.25 8h9.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-          </svg>
-        </span>
+        <span class="slot-plus" aria-hidden="true">+</span>
+        <span class="slot-invite">add a picture</span>
       </template>
     </button>
 
@@ -185,9 +177,9 @@ function onCardClick(): void {
 
 <style scoped>
 /*
- * Cell: the drop target wrapper. Drop hover = 2px accent inset so the
- * landing spot is unmistakable mid-drag; selection mirrors onto the wrapper
- * so the page can anchor the editor to the card.
+ * Cell: the drop target wrapper. Drop hover = mint fill + deep inset ring
+ * so the landing spot is unmistakable mid-drag; selection mirrors onto the
+ * wrapper so the page can anchor the editor to the card.
  */
 .slot-cell {
   position: relative;
@@ -199,29 +191,30 @@ function onCardClick(): void {
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid var(--accent);
+  border: 2.5px solid var(--mint-deep);
   border-radius: var(--radius-card);
+  background: var(--mint-soft);
   pointer-events: none;
 }
 
-.slot-cell.is-selected {
-  z-index: 5;
-}
+.slot-cell.is-selected { z-index: 5; }
+.slot-cell.is-asking { z-index: 6; }
 
 /*
- * Card anatomy: icon area (~70% of the card) over a single-line label,
- * 1px hairline, radius from the shared token. No elevations, no gradients.
+ * Card anatomy: icon area over a single-line label, hairline edge, radius
+ * from the shared token. Flat — separation is the fill, not a shadow.
  */
 .slot-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 6%;
+  padding: 7%;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background-color: var(--surface);
@@ -231,31 +224,43 @@ function onCardClick(): void {
   transition: border-color 120ms ease;
 }
 
-.slot-card:hover {
-  border-color: var(--control);
-}
+.slot-card.filled:hover { border-color: var(--control); }
 
-/* Selected — 2px accent outline, 2px offset; zero layout shift, no elevation. */
-.slot-card.is-selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+/* Selected — deep-green ring, zero layout shift, no shadow. */
+.slot-card.is-selected { outline: 3px solid var(--mint-deep); outline-offset: 2px; }
 
-/* Empty - dashed 1px box on the sheet itself (house rule for builders):
-   no fill, so an empty chart reads as paper, not as pre-filled cards. */
+/* Empty — the card asks: a mint ⊕ above the invitation. */
 .slot-card.is-empty {
-  border-style: dashed;
-  border-color: var(--control);
   background-color: transparent;
+  border: 1.5px dashed var(--control);
+  gap: 6px;
+}
+.slot-card.is-empty:hover { border-color: var(--text); }
+.slot-card.is-empty:hover .slot-plus { background: var(--mint); }
+
+.slot-plus {
+  display: flex; align-items: center; justify-content: center;
+  width: clamp(16px, 2.6cqw, 24px); height: clamp(16px, 2.6cqw, 24px);
+  border-radius: 50%;
+  background: var(--mint-soft); color: var(--mint-deep);
+  font-size: clamp(11px, 1.8cqw, 15px); font-weight: 600; line-height: 1;
+  transition: background 120ms ease;
 }
 
-/* Empty cards invite the placement: the plus warms up on hover. */
-.slot-card.is-empty:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.slot-invite {
+  font-size: clamp(12px, 1.9cqw, 13.5px);
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.3;
 }
 
-/* Icon area stretches to everything the label doesn't need (~70%). */
+/* Asking — the card has grown into the picker. */
+.slot-card.is-asking {
+  border: 2.5px solid var(--mint-deep);
+  background: var(--mint-soft);
+}
+
+/* Icon area stretches to everything the label doesn't need. */
 .slot-icon {
   display: flex;
   flex: 1 1 0;
@@ -265,30 +270,22 @@ function onCardClick(): void {
   min-height: 0;
 }
 
-.slot-glyph {
-  width: 100%;
-  height: 100%;
-}
-
-.slot-pictogram {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
+.slot-glyph { width: 62%; height: 62%; }
+.slot-pictogram { width: 62%; height: 62%; object-fit: contain; }
 
 .slot-label {
   flex: 0 0 auto;
   width: 100%;
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: clamp(12px, 2.2cqw, 16px);
+  font-weight: 600;
   line-height: 1.3;
   text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* Editability hint on the selected card's label (dotted text underline — not a rule). */
+/* Editability hint on the selected card's label (dotted text underline). */
 .slot-label.is-editable {
   cursor: text;
   text-decoration: underline dotted var(--control);
@@ -296,40 +293,26 @@ function onCardClick(): void {
 }
 
 /*
- * The inline editor: pinned exactly over the label line (6% card padding +
- * the sheet's cqw label sizing comes from ChartSheet's :deep override).
+ * The inline editor: pinned exactly over the label line, sized by the
+ * same cqw rule (ChartSheet's :deep override) so the swap never shifts
+ * the sheet.
  */
 .slot-label-input {
   position: absolute;
-  left: 2%;
-  right: 2%;
-  bottom: 2%;
+  left: 3%;
+  right: 3%;
+  bottom: 4%;
   min-width: 0;
   padding: 0;
   border: none;
-  border-bottom: 1px solid var(--accent); /* taste-skill-ignore */
+  border-bottom: 1.5px solid var(--accent); /* taste-skill-ignore */
   background: var(--surface);
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: clamp(12px, 2.2cqw, 16px);
+  font-weight: 600;
   line-height: 1.3;
   text-align: center;
   color: var(--text);
   outline: none;
-}
-
-.slot-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  color: var(--muted);
-  transition: color 120ms ease;
-}
-
-.slot-plus svg {
-  width: 100%;
-  height: 100%;
 }
 </style>

@@ -15,14 +15,13 @@ export default defineNuxtConfig({
     buildAssetsDir: 'assets',
     head: {
       link: [
-        // Barlow Condensed 700 (display) + Barlow 400/500/600 (text) — the dealt
-        // faces (.taste-skill/direction.json seed 756865226). Preconnect both
-        // font hosts, then the stylesheet.
+        // Mint poster system: Anton (landing display) + Work Sans (all UI and
+        // the chart sheet) — design_iterations/design-system.md.
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Barlow:wght@400;500;600&display=swap',
+          href: 'https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap',
         },
       ],
     },
