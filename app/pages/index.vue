@@ -187,7 +187,7 @@ a { color: inherit; }
 .btn.mint:hover { opacity: 1; background: #96f28a; }
 
 /* ---------------- hero (centred, compact) ---------------- */
-.hero { text-align: center; padding: 40px 0 72px; }
+.hero { text-align: center; padding: 56px 0 72px; }
 .hero h1 {
   margin: 0 auto;
   max-width: 14ch;

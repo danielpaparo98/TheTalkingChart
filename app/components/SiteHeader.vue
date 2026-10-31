@@ -20,11 +20,11 @@ const logoSrc = `${config.app.baseURL}logo.svg`
 </template>
 
 <style scoped>
-.top { display: flex; align-items: center; justify-content: space-between; padding-block: 24px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding-block: 32px; }
 .wrap { width: 100%; max-width: 900px; margin: 0 auto; padding: 0 28px; }
 @media (max-width: 720px) {
   .wrap { padding: 0 20px; }
-  .top { padding-block: 20px; }
+  .top { padding-block: 24px; }
 }
 .logo-link {
   display: inline-flex; align-items: center;
