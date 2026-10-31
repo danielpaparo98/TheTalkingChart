@@ -13,13 +13,29 @@ export default defineNuxtConfig({
     // Matches GitHub repo name so deployment "just works"
     baseURL: '/visual-communication-app/',
     buildAssetsDir: 'assets',
+    head: {
+      link: [
+        // Mint poster system: Anton (landing display) + Work Sans (all UI and
+        // the chart sheet) — design_iterations/design-system.md.
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap',
+        },
+        // the logo tile doubles as the favicon (baseURL-aware)
+        { rel: 'icon', type: 'image/svg+xml', href: '/visual-communication-app/favicon.svg' },
+      ],
+    },
   },
 
   nitro: {
     preset: 'github-pages',
   },
 
-  css: ['~/assets/css/main.css'],
+  tailwindcss: {
+    cssPath: '~/assets/css/main.css',
+  },
 
   typescript: {
     strict: true,

@@ -2,29 +2,35 @@
   "name": "the-talking-chart",
   "type": "module",
   "private": true,
-  "description": "Free, open-source PECs chart generator. Pick icons, add labels, print.",
+  "description": "Free, open-source PECs chart generator. 30,000+ open-source icons, labels, print.",
   "scripts": {
-    "dev": "npx nuxt dev",
-    "build": "npx nuxt build",
-    "generate": "npx nuxt generate",
-    "preview": "npx nuxt preview",
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
     "typecheck": "nuxi typecheck",
-    "postinstall": "npx nuxt prepare"
+    "postinstall": "nuxt prepare && node scripts/build-icon-data.mjs && node scripts/vendor-runtime-deps.mjs",
+    "icons": "node scripts/build-icon-data.mjs --force"
   },
   "dependencies": {
-    "@oxc-parser/binding-win32-x64-msvc": "0.133.0",
+    "@iconify/vue": "^4.1.2",
     "@pinia/nuxt": "^1.0.0",
     "html2canvas-pro": "^2.2.4",
     "jspdf": "^4.2.1",
     "nuxt": "^4.0.0",
     "pinia": "^4.0.2",
-    "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@iconify-json/mdi": "^1.2.0",
+    "@iconify-json/material-symbols": "^1.2.0",
+    "@iconify-json/openmoji": "^1.2.0",
+    "@iconify-json/tabler": "^1.2.0",
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",
-    "playwright": "^1.61.1",
     "typescript": "^5.7.3",
-    "vue-tsc": "^3.3.7"
-  }
+    "vue-tsc": "3.3.7"
+  },
+  "trustedDependencies": [
+    "core-js"
+  ]
 }

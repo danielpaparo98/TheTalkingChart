@@ -42,3 +42,12 @@ test-results/
 .kilo/
 .tmp/
 design_iterations/
+
+# Generated icon bundles (built by scripts/build-icon-data.mjs)
+public/icon-data/
+
+# Vendored runtime deps (copied by scripts/vendor-runtime-deps.mjs)
+public/vendor/
+
+# Design-skill validation artifacts
+.taste-skill/

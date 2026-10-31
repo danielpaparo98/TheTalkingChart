@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — "Mint poster" (design_iterations/design-system.md, v1).
+ *
+ * Two blocks on purpose:
+ *  1. `@theme` — Tailwind v4 theme variables; generate the utilities used in
+ *     templates (bg-ground, bg-surface, text-muted, border-border, ...).
+ *  2. `:root` — the canonical plain custom properties consumed by component
+ *     CSS (var(--ground), var(--mint), ...).
+ * Values are written literally in both places and kept in sync deliberately.
+ *
+ * System: white paper, near-black ink, one mint accent, orange reserved for
+ * the thing that moves. Colour on the data (pictograms, card tints), never
+ * on chrome. No gradients, no glass; shadows only on what floats.
+ */
+@theme {
+  /* Type — Work Sans (all UI + the chart sheet); Anton is landing-only */
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+
+  /* Type scale (app chrome) */
+  --text-title: 22px;
+  --text-title--line-height: 1.25;
+  --text-section: 16px;
+  --text-section--line-height: 1.4;
+  --text-kpi: 28px;
+  --text-kpi--line-height: 1.2;
+  --text-body: 14px;
+  --text-body--line-height: 1.5;
+  --text-small: 12px;
+  --text-small--line-height: 1.4;
+
+  /* Surfaces + ink */
+  --color-ground: #f3f8f0;        /* the desk: a whisper of mint */
+  --color-surface: #ffffff;       /* paper — sheets and panels */
+  --color-paper: #ffffff;
+  --color-ink: #000000;
+  --color-raised: #edf4e9;
+  --color-active: #e2efdc;
+  --color-well: #e7eee2;          /* canvas: one step from the desk */
+  --color-border: #e0e8da;
+  --color-rule: #f0f4ec;
+  --color-control: #c8d2c2;
+  --color-text: #131711;
+  --color-muted: #5c6657;
+
+  /* Semantic */
+  --color-accent: #2e7d32;        /* deep green — selection, rings */
+  --color-primary: #131711;       /* ink filled button */
+  --color-negative: #c4242a;
+  --color-positive: #247b50;
+  --color-warning: #92400e;
+
+  /* The poster colours (landing + card tints) */
+  --color-mint: #a7ff9c;
+  --color-mint-soft: #eafce6;
+  --color-orange: #ff6831;        /* the thing that moves */
+  --color-tint-mint: #e2f7da;
+  --color-tint-lemon: #fff3cf;
+  --color-tint-sky: #e4f1fd;
+  --color-tint-peach: #ffe8d9;
+  --color-tint-rose: #fde5ec;
+  --color-tint-lilac: #f3e8fd;
+
+  /* Pill pairs (bg, fg) — status pills */
+  --color-pill-positive-bg: #dcfae5;
+  --color-pill-positive-fg: #04250e;
+  --color-pill-negative-bg: #ffedea;
+  --color-pill-negative-fg: #831c1e;
+  --color-pill-warning-bg: #fffbeb;
+  --color-pill-warning-fg: #92400e;
+  --color-pill-neutral-bg: #e2efdc;
+  --color-pill-neutral-fg: #3a423a;
+
+  /* Radii — controls 6, tiles 8, chart cards 14, panels/sheet 18 */
+  --radius-card: 14px;
+  --radius-control: 6px;
+  --radius-sheet: 18px;
+}
+
+/*
+ * Canonical plain tokens — one custom property per design-system token.
+ * --surface stays white so the chart sheet is always exactly what prints.
+ */
+:root {
+  --ground: #f3f8f0;
+  --surface: #ffffff;
+  --paper: #ffffff;               /* landing page ground */
+  --ink: #000000;                 /* landing text + primary blocks */
+  --raised: #edf4e9;
+  --active: #e2efdc;
+  --well: #e7eee2;
+  --border: #e0e8da;
+  --rule: #f0f4ec;
+  --control: #c8d2c2;
+  --text: #131711;
+  --muted: #5c6657;
+  --accent: #2e7d32;
+  --primary: #131711;
+  --negative: #c4242a;
+  --positive: #247b50;
+  --warning: #92400e;
+
+  --mint: #a7ff9c;
+  --mint-soft: #eafce6;
+  --mint-deep: #2e7d32;
+  --orange: #ff6831;
+  --tint-mint: #e2f7da;
+  --tint-lemon: #fff3cf;
+  --tint-sky: #e4f1fd;
+  --tint-peach: #ffe8d9;
+  --tint-rose: #fde5ec;
+  --tint-lilac: #f3e8fd;
+
+  /* Pill pairs: <tone>-bg / <tone>-fg */
+  --pill-positive-bg: #dcfae5;
+  --pill-positive-fg: #04250e;
+  --pill-negative-bg: #ffedea;
+  --pill-negative-fg: #831c1e;
+  --pill-warning-bg: #fffbeb;
+  --pill-warning-fg: #92400e;
+  --pill-neutral-bg: #e2efdc;
+  --pill-neutral-fg: #3a423a;
+
+  /* Shape + density */
+  --radius-card: 14px;
+  --radius-control: 6px;
+  --radius-sheet: 18px;
+  --sheet-inset: 8px;
+  --gap: 24px;
+  --pad: 24px;
+  --control-height: 32px;
+
+  /* Type scale (mirrors the @theme --text-* values) */
+  --text-title: 22px;
+  --text-section: 16px;
+  --text-kpi: 28px;
+  --text-body: 14px;
+  --text-small: 12px;
+
+  /* Type families (mirrors @theme) */
+  --font-text: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+}
+
+/* Base element defaults — layered so utilities always win over them */
+@layer base {
+  body {
+    font-family: var(--font-text);
+    background-color: var(--ground);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Visible focus — 2px accent outline, 2px offset (accessibility rule) */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures for counts, KPIs and other numeric UI */
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+ * Print — the sheet is the page (context line 43; owned by chart-app-v2-09).
+ * Only [data-chart-sheet] prints, at true A4 landscape: page margin 0, all
+ * chrome hidden, exact colors. The geometry overrides must beat the sheet's
+ * scoped screen rules (class + scope attribute = higher specificity), hence
+ * !important on the pinned page-box properties only.
+ * ------------------------------------------------------------------------- */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block;
+  }
+
+  /* One edge-to-edge A4 landscape page. */
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0;
+    background-color: #fff;
+    /* The hidden chrome keeps its layout box; clip it so it cannot spill
+       onto a blank second page. The sheet is unaffected: fixed elements are
+       clipped by no ancestor overflow. */
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Hide every chrome box, then reveal only the sheet subtree. */
+  body * {
+    visibility: hidden;
+  }
+
+  [data-chart-sheet],
+  [data-chart-sheet] * {
+    visibility: visible;
+  }
+
+  /* Printable-area guide — lives outside the sheet root; never printed. */
+  .print-guide {
+    display: none;
+  }
+
+  [data-chart-sheet] {
+    /* Pin the sheet to the physical page box in mm instead of aspect-ratio
+       (Chrome ignores aspect-ratio on fixed-mm print pages). */
+    position: fixed !important;
+    inset: 0 !important;
+    width: 297mm !important;
+    height: 210mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    /* Screen padding is a percentage of sheet width; print uses the true
+       10mm margin. The (hidden) guide inherits the same var. */
+    --sheet-pad: 10mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Pastel card fills and ink survive — no browser print economizing. */
+  [data-chart-sheet] *,
+  [data-chart-sheet] *::before,
+  [data-chart-sheet] *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
