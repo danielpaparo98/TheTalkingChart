@@ -43,11 +43,6 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <header class="top wrap">
-      <NuxtLink to="/" class="wordmark">Talking Chart</NuxtLink>
-      <NuxtLink class="btn" to="/app">Make your chart</NuxtLink>
-    </header>
-
     <main class="wrap">
       <h1>Licences &amp; attribution</h1>
       <p class="intro rise d1">
@@ -108,42 +103,17 @@ onMounted(async () => {
         </table>
       </section>
     </main>
-
-    <footer class="foot">
-      <div class="wrap">
-        <NuxtLink to="/" class="back">← Back to the chart</NuxtLink>
-      </div>
-    </footer>
   </div>
 </template>
-
 <style scoped>
 .page {
-  min-height: 100dvh;
+  flex: 1 1 auto;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-text);
-  display: flex;
-  flex-direction: column;
 }
 .wrap { width: 100%; max-width: 820px; margin: 0 auto; padding: 0 28px; }
 a { color: inherit; }
-
-.top { display: flex; align-items: center; justify-content: space-between; padding-block: 26px; }
-.wordmark {
-  font-family: var(--font-display);
-  font-weight: 400; text-transform: uppercase;
-  font-size: 21px; letter-spacing: 0.02em;
-  text-decoration: none;
-}
-.btn {
-  display: inline-flex; align-items: center;
-  background: var(--ink); color: #fff;
-  text-decoration: none; cursor: pointer;
-  font-size: 14px; font-weight: 600;
-  padding: 10px 18px; border-radius: 8px;
-}
-.btn:hover { opacity: 0.85; }
 
 h1 {
   margin: 40px 0 0;
@@ -183,13 +153,8 @@ h1 {
 .num { font-variant-numeric: tabular-nums; }
 .note { margin: 12px 0 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
 
-.foot { margin-top: auto; padding: 40px 0 36px; }
-.back { font-size: 14px; font-weight: 600; text-decoration: none; }
-.back:hover { text-decoration: underline; text-underline-offset: 4px; }
-
 @media (max-width: 720px) {
   .wrap { padding: 0 20px; }
-  .top { padding-block: 20px; }
   h1 { margin-top: 24px; }
   .block { margin-top: 40px; }
   .lic-table th:nth-child(3), .lic-table td:nth-child(3) { padding-right: 6px; }

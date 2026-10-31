@@ -23,6 +23,8 @@ import type { LabelSize } from '~/components/StyleControls.vue'
 import { useChartStore } from '~/stores/chart'
 import { useExport } from '~/composables/useExport'
 
+definePageMeta({ layout: 'app' })
+
 const WIDE_QUERY = '(min-width: 720px)'
 
 const chart = useChartStore()
