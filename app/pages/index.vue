@@ -61,11 +61,11 @@ const CARDS: ReadonlyArray<{ icon: string; label: string; tint: string }> = [
   { icon: 'openmoji:person-in-bed', label: 'sleep', tint: 'tint-mint' },
 ]
 
-/** ARASAAC raster pictograms (the therapist-standard set), verified IDs. */
+/** ARASAAC raster pictograms (the therapist-standard set), bundled offline. */
 const ARASAAC_CARDS = [
-  { src: 'https://static.arasaac.org/pictograms/2558/2558_300.png', label: 'cook' },
-  { src: 'https://static.arasaac.org/pictograms/3430/3430_300.png', label: 'crossing' },
-  { src: 'https://static.arasaac.org/pictograms/2951/2951_300.png', label: 'bricks' },
+  { src: `${config.app.baseURL}pictograms/2558.png`, label: 'cook' },
+  { src: `${config.app.baseURL}pictograms/3430.png`, label: 'crossing' },
+  { src: `${config.app.baseURL}pictograms/2951.png`, label: 'bricks' },
 ]
 
 /** The full sliding strip: OpenMoji glyphs + ARASAAC rasters, duplicated for the loop. */
@@ -203,7 +203,7 @@ a { color: inherit; }
 .wordmark {
   font-family: var(--font-display);
   font-weight: 400; text-transform: uppercase;
-  font-size: 19px; letter-spacing: 0.02em;
+  font-size: 21px; letter-spacing: 0.02em;
 }
 .top-right { display: flex; align-items: center; gap: 22px; }
 .gh {
@@ -234,11 +234,14 @@ a { color: inherit; }
   line-height: 0.94;
 }
 .hero h1 .hl {
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  display: inline-block;
+  line-height: 1;
   background: var(--mint);
-  border-radius: 0.08em;
-  padding: 0 0.14em;
+  border-radius: 0.06em;
+  /* hug the glyphs: padding inside, matching negative margin outside —
+     the block never bleeds into the neighbouring line */
+  padding: 0.08em 0.14em 0.1em;
+  margin: -0.04em -0.12em;
 }
 .sub {
   margin: 28px auto 0;
@@ -251,10 +254,10 @@ a { color: inherit; }
 .fact { font-size: 16px; color: var(--muted); }
 
 /* ---------------- dark banner: verbs + carousel ---------------- */
-.band { background: var(--ink); color: #fff; padding: 72px 0 76px; overflow: hidden; }
+.band { background: var(--ink); color: #fff; padding: 64px 0 68px; overflow: hidden; }
 .verbs {
   margin: 0 auto; text-align: center;
-  font-size: clamp(17px, 2.2vw, 21px);
+  font-size: clamp(19px, 2.4vw, 24px);
   font-weight: 500; line-height: 1.5;
   padding: 0 28px;
 }
@@ -262,7 +265,7 @@ a { color: inherit; }
 .verbs b { font-weight: 700; }
 
 .marquee {
-  margin-top: 52px;
+  margin-top: 44px;
   overflow: hidden;
   animation: rise 640ms ease backwards 240ms;
   /* soft edges: painted via mask (not a gradient fill — taste-skill-ignore) */
@@ -282,7 +285,9 @@ a { color: inherit; }
   border-radius: 14px;
   padding: 16px 8px 12px;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
+  transition: translate 160ms ease;
 }
+.m-card:hover { translate: 0 -6px; }
 .m-card .om { width: 48px; height: 48px; }
 .m-card span { font-size: 13px; font-weight: 600; }
 .m-card.tint-mint { background: var(--mint); }
