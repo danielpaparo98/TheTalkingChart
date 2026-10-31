@@ -159,14 +159,10 @@ useHead({
       <div class="wrap foot-inner rise">
         <p>
           <strong style="color: var(--ink)">The Talking Chart</strong> — free,
-          printable AAC picture communication charts. Open source under
-          <a href="https://github.com/papar/visual-communication-app" rel="noopener">MIT</a>.
-          Built by Daniel Paparo.
-        </p>
-        <p>
-          Icons: OpenMoji (CC BY-SA 4.0) · Material Design Icons (Apache-2.0) ·
-          Material Symbols (Apache-2.0) · Tabler (MIT) · ARASAAC (CC BY-NC-SA 4.0).
-          Font: Work Sans (SIL OFL 1.1).
+          printable AAC picture communication charts · Open source under
+          <a href="https://github.com/papar/visual-communication-app" rel="noopener">MIT</a>
+          · Built by <a href="https://danielpaparo.com" rel="noopener">Daniel Paparo</a>
+          · <NuxtLink to="/attributes">Licences</NuxtLink>
         </p>
       </div>
     </footer>
@@ -299,11 +295,10 @@ a { color: inherit; }
 /* ---------------- footer ---------------- */
 .foot { margin-top: auto; padding: 30px 0 36px; }
 .foot-inner {
-  display: flex; flex-wrap: wrap; gap: 10px 48px;
-  align-items: baseline; justify-content: space-between;
+  text-align: center;
   font-size: 16px; line-height: 1.6; color: var(--muted);
 }
-.foot-inner p { margin: 0; max-width: 70ch; }
+.foot-inner p { margin: 0; }
 .foot-inner a { text-decoration: underline; text-underline-offset: 3px; }
 .foot-inner a:hover { color: var(--ink); }
 
