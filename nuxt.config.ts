@@ -23,6 +23,8 @@ export default defineNuxtConfig({
           rel: 'stylesheet',
           href: 'https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap',
         },
+        // the logo tile doubles as the favicon (baseURL-aware)
+        { rel: 'icon', type: 'image/svg+xml', href: '/visual-communication-app/favicon.svg' },
       ],
     },
   },

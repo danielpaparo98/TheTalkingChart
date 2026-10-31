@@ -20,6 +20,8 @@ const emit = defineEmits<{
 }>()
 
 const chart = useChartStore()
+const config = useRuntimeConfig()
+const logoSrc = `${config.app.baseURL}logo.svg`
 
 /** Hard cap for the inline title (synced with the sheet editor's 60). */
 const TITLE_MAX_LENGTH = 60
@@ -48,6 +50,9 @@ function onTitleInput(event: Event): void {
         <path d="M9.5 3.5 5 8l4.5 4.5M5 8h8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </NuxtLink>
+
+    <!-- the brand tile: quiet identity between exit and object -->
+    <img :src="logoSrc" alt="" width="24" height="24" class="brand-tile">
 
     <!-- Chart name: borderless until hover/focus; the sheet's inline edit is primary -->
     <input
@@ -100,6 +105,11 @@ function onTitleInput(event: Event): void {
 </template>
 
 <style scoped>
+.brand-tile {
+  flex: none;
+  border-radius: 6px;
+  margin-right: 2px;
+}
 .name-input {
   text-overflow: ellipsis;
 }

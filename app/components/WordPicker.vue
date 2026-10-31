@@ -33,9 +33,6 @@ const catalog = useCatalogStore()
 
 const asking = computed(() => chart.askingSlot)
 
-/** What the parent typed — becomes the card's label. */
-const query = ref('')
-
 /** The active colour tint for the card being filled (null = white). */
 const activeColor = ref<string | null>(null)
 
@@ -70,12 +67,24 @@ function flushSearch(): void {
   void catalog.search(inputText.value)
 }
 
+/**
+ * The card-first flow never mounts the drawer, so THIS component owns the
+ * catalog bootstrap: registry + default set bundle must load before any
+ * search can return results.
+ */
+onMounted(() => {
+  void catalog.ensureSets().then(() => {
+    if (!catalog.activeSetIsOnline && catalog.activeSet !== null && catalog.activeIndex === null) {
+      return catalog.selectSet(catalog.activeSetPrefix)
+    }
+  })
+})
+
 /** Seed the search with the card's own word when the picker opens. */
 watch(
   () => chart.askingSlotId,
   () => {
     inputText.value = ''
-    query.value = ''
     activeColor.value = asking.value?.color ?? '#e2f7da'
     void nextTick(() => inputEl.value?.focus())
   },
@@ -89,7 +98,7 @@ const searching = computed(
 )
 
 const resultsLabel = computed(() =>
-  query.value.trim() !== '' ? `Pictures for “${query.value.trim()}”` : 'Popular pictures',
+  inputText.value.trim() !== '' ? `Pictures for “${inputText.value.trim()}”` : 'Popular pictures',
 )
 
 /** Placement: picture in, typed word as label, tint applied, advance. */
@@ -102,7 +111,7 @@ function place(entry: IconSearchEntry): void {
   }
   const iconRef = catalog.refFor(entry)
   chart.setSlotIcon(slot.id, iconRef)
-  const label = query.value.trim()
+  const label = inputText.value.trim()
   if (label !== '') chart.setSlotLabel(slot.id, label)
   if (activeColor.value !== null) chart.setSlotColor(slot.id, activeColor.value)
   chart.askNextAfter(slot.id)
@@ -164,7 +173,7 @@ function setLabel(entry: IconSearchEntry): string {
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     </button>
 
-    <p class="say">This card says <span class="hl">{{ query.trim() !== '' ? query.trim() : '…' }}</span></p>
+    <p class="say">This card says <span class="hl">{{ inputText.trim() !== '' ? inputText.trim() : '…' }}</span></p>
     <div class="ask-line">
       <input
         ref="inputEl"

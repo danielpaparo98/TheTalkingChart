@@ -98,6 +98,8 @@ useHead({
 
 <template>
   <div class="landing">
+    <SiteHeader />
+
     <!-- ================= HERO (centred) ================= -->
     <section class="hero wrap">
       <h1 class="rise">Print them<br>a <span class="hl">voice.</span></h1>
@@ -143,7 +145,8 @@ useHead({
       </div>
     </section>
 
-</div>
+    <SiteFooter />
+   </div>
 </template>
 
 <style scoped>

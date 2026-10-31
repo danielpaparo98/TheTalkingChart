@@ -43,6 +43,8 @@ onMounted(async () => {
 
 <template>
   <div class="page">
+    <SiteHeader />
+
     <main class="wrap">
       <h1>Licences &amp; attribution</h1>
       <p class="intro rise d1">
@@ -103,6 +105,8 @@ onMounted(async () => {
         </table>
       </section>
     </main>
+
+    <SiteFooter />
   </div>
 </template>
 <style scoped>
