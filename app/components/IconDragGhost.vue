@@ -59,7 +59,10 @@ const pictogramSrc = computed(() => {
   height: 72px;
   padding: 10px;
   background: var(--surface);
-  border: 2.5px solid var(--orange);
+  /* #e04f1a ≈ 3.5:1 on paper — the raw --orange (#ff6831) is 2.89:1,
+     under the 3:1 non-text minimum (WCAG 1.4.11). Brand keeps orange
+     motion; only the ghost's border darkens. */
+  border: 2.5px solid #e04f1a;
   border-radius: var(--radius-card);
   rotate: -3deg;
   pointer-events: none;

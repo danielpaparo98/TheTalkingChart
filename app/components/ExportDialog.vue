@@ -4,9 +4,9 @@
  *
  * Contract: context bundle line 70; subtask chart-app-v2-14. Teleported to
  * <body> so it always floats above the builder chrome; opened/closed purely
- * through the `open` prop (focus return stays the parent's concern — fine
- * for v1). Esc and scrim clicks both close; focus lands on the first option
- * when it opens.
+ * through the `open` prop. Esc and scrim clicks both close; focus lands on
+ * the first option when it opens, Tab is trapped inside the modal surface,
+ * and focus returns to the trigger element on close (WCAG 2.4.3 / 2.4.11).
  *
  * Three actions, all wired to `useExport`:
  *  - Print → `printChart()` (browser print dialog over the page), then close.
@@ -60,6 +60,65 @@ const titleId = useId()
 
 /** First option button — receives focus when the dialog opens. */
 const printButtonRef = ref<HTMLButtonElement | null>(null)
+/** The modal surface — Tab is trapped inside it while open. */
+const dialogRef = ref<HTMLDivElement | null>(null)
+/** Where focus came from; restored on close so keyboard users aren't
+ *  dumped at the top of the document (WCAG 2.4.3). */
+let previouslyFocused: HTMLElement | null = null
+
+/** Focusable candidates for the Tab trap, in DOM order. */
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    requestClose()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const root = dialogRef.value
+  if (root === null) return
+  const focusable = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) => el.offsetParent !== null,
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0] as HTMLElement
+  const last = focusable[focusable.length - 1] as HTMLElement
+  const current = document.activeElement
+  const inside = current !== null && root.contains(current)
+  if (event.shiftKey) {
+    if (!inside || current === first) {
+      event.preventDefault()
+      last.focus()
+    }
+  } else if (!inside || current === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+// Esc closes + Tab is trapped while open; focus lands on the first option
+// and returns to the trigger on close. The listener's lifecycle tracks the
+// `open` prop so nothing lingers after close/unmount.
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (typeof window === 'undefined') return
+    if (isOpen) {
+      previouslyFocused =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null
+      window.addEventListener('keydown', onKeydown)
+      void nextTick(() => printButtonRef.value?.focus())
+    } else {
+      window.removeEventListener('keydown', onKeydown)
+      if (previouslyFocused !== null && previouslyFocused.isConnected) {
+        previouslyFocused.focus()
+      }
+      previouslyFocused = null
+    }
+  },
+  { immediate: true },
+)
 
 /** Export currently running (drives the inline 'Preparing…' state), or null. */
 const busyAction = ref<RetryableAction | null>(null)
@@ -72,26 +131,6 @@ const hasIcons = computed(() => chartStore.doc.slots.some((slot) => slot.icon !=
 function requestClose(): void {
   emit('close')
 }
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') requestClose()
-}
-
-// Esc closes while open; focus lands on the first option. The listener's
-// lifecycle tracks the `open` prop so nothing lingers after close/unmount.
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (typeof window === 'undefined') return
-    if (isOpen) {
-      window.addEventListener('keydown', onKeydown)
-      void nextTick(() => printButtonRef.value?.focus())
-    } else {
-      window.removeEventListener('keydown', onKeydown)
-    }
-  },
-  { immediate: true },
-)
 
 onScopeDispose(() => {
   if (typeof window !== 'undefined') window.removeEventListener('keydown', onKeydown)
@@ -132,7 +171,7 @@ function retry(): void {
          throttled (background tab) or transitions are disabled
          (prefers-reduced-motion) — reliability beats a 160ms fade. -->
     <div v-if="open" class="overlay" @click.self="requestClose">
-        <div class="dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId">
+        <div ref="dialogRef" class="dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId">
           <header class="dialog-head">
             <h2 :id="titleId" class="dialog-title">Print or export</h2>
             <button
@@ -178,7 +217,7 @@ function retry(): void {
                 <span class="option-title">Download PNG</span>
                 <span class="option-sub">High-resolution image (2×)</span>
               </span>
-              <span v-if="busyAction === 'png'" class="option-busy">Preparing…</span>
+              <span v-if="busyAction === 'png'" class="option-busy" role="status">Preparing…</span>
             </button>
 
             <button
@@ -192,7 +231,7 @@ function retry(): void {
                 <span class="option-title">Download PDF</span>
                 <span class="option-sub">One A4 landscape page</span>
               </span>
-              <span v-if="busyAction === 'pdf'" class="option-busy">Preparing…</span>
+              <span v-if="busyAction === 'pdf'" class="option-busy" role="status">Preparing…</span>
             </button>
           </div>
 
@@ -241,35 +280,9 @@ function retry(): void {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14); /* taste-skill-ignore */
 }
 
-/* Open/close — fade the scrim, settle the sheet; both under 400ms. */
-.dialog-enter-active,
-.dialog-leave-active {
-  transition: opacity 160ms ease;
-}
-
-.dialog-enter-active .dialog,
-.dialog-leave-active .dialog {
-  transition: transform 160ms ease;
-}
-
-.dialog-enter-from,
-.dialog-leave-to {
-  opacity: 0;
-}
-
-.dialog-enter-from .dialog,
-.dialog-leave-to .dialog {
-  transform: translateY(6px) scale(0.98);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dialog-enter-active,
-  .dialog-leave-active,
-  .dialog-enter-active .dialog,
-  .dialog-leave-active .dialog {
-    transition: none;
-  }
-}
+/* Open/close — no transition by design (see template note above); the
+   dialog appears and disappears instantly, which is also the safest
+   behaviour under prefers-reduced-motion. */
 
 .dialog-head {
   display: flex;

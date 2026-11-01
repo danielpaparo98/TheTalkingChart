@@ -195,9 +195,9 @@ const compactLine = computed<string>(() => {
   font-size: 11px; /* house floor — nothing renders under 11px */
   line-height: 1.35;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Wraps instead of ellipsizing: the attribution line is legally
+     required to travel with every chart (ARASAAC CC BY-NC-SA) and must
+     never be silently truncated on narrow sheets or in exports. */
 }
 
 .notice-full {

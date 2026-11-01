@@ -109,7 +109,8 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
       canvas: null,
       error: {
         reason: 'missing-sheet',
-        message: `No chart sheet element (${SHEET_SELECTOR}) found in the document.`,
+        // User-facing: no CSS selector jargon in the dialog (WCAG 3.3.1).
+        message: 'The chart could not be found on the page. Close this dialog and try again.',
       },
     }
   }

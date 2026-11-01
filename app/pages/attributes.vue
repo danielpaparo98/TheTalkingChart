@@ -45,7 +45,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="wrap">
+  <div class="wrap">
     <h1>Licences &amp; attribution</h1>
     <p class="intro rise d1">
       Everything The Talking Chart is built from, and the terms it carries.
@@ -56,6 +56,7 @@ onMounted(async () => {
     <section class="block rise d2" aria-labelledby="icons-title">
       <h2 id="icons-title">Icon sets</h2>
       <table class="lic-table">
+        <caption class="sr-only">Icon set licences</caption>
         <thead>
           <tr><th scope="col">Set</th><th scope="col">Icons</th><th scope="col">Licence</th><th scope="col">Availability</th></tr>
         </thead>
@@ -83,6 +84,7 @@ onMounted(async () => {
     <section class="block" aria-labelledby="type-title">
       <h2 id="type-title">Type</h2>
       <table class="lic-table">
+        <caption class="sr-only">Typeface licences</caption>
         <thead>
           <tr><th scope="col">Face</th><th scope="col">Used for</th><th scope="col">Licence</th></tr>
         </thead>
@@ -96,6 +98,7 @@ onMounted(async () => {
     <section class="block" aria-labelledby="code-title">
       <h2 id="code-title">The app</h2>
       <table class="lic-table">
+        <caption class="sr-only">Application licence</caption>
         <thead>
           <tr><th scope="col">Part</th><th scope="col">Detail</th><th scope="col">Licence</th></tr>
         </thead>
@@ -104,7 +107,7 @@ onMounted(async () => {
         </tbody>
       </table>
     </section>
-  </main>
+  </div>
 </template>
 <style scoped>
 .wrap { width: 100%; max-width: 820px; margin: 0 auto; padding: 0 28px; }
@@ -142,7 +145,7 @@ h1 {
   border-bottom: 2px solid var(--ink);
 }
 .lic-table td { padding: 11px 14px 11px 0; vertical-align: baseline; }
-.lic-table tbody tr { border-bottom: 1px solid var(--line); }
+.lic-table tbody tr { border-bottom: 1px solid var(--rule); }
 .lic-table tbody tr:last-child { border-bottom: 2px solid var(--ink); }
 .lic-table td:first-child { font-weight: 600; }
 .num { font-variant-numeric: tabular-nums; }

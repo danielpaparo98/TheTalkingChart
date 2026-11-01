@@ -15,6 +15,9 @@ export default defineNuxtConfig({
     baseURL: '/',
     buildAssetsDir: 'assets',
     head: {
+      // SPA mode renders <html> without a lang attribute unless declared
+      // here — required for screen-reader pronunciation (WCAG 3.1.1).
+      htmlAttrs: { lang: 'en' },
       link: [
         // Mint poster system: Anton (landing display) + Work Sans (all UI and
         // the chart sheet) — design_iterations/design-system.md.
