@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /**
- * Landing — "Mint poster", the locked one-screen design.
+ * Landing — "Mint poster", the locked one-screen design. Chrome (header,
+ * footer, the full-height paper sheet) comes from the default layout;
+ * this page is the hero and the dark band only.
  *
  * A small open-source tool gets a small page: what it is, what it looks
  * like, one button, licences. The hero owns the first viewport — it flexes
@@ -99,68 +101,53 @@ useHead({
 </script>
 
 <template>
-  <div class="landing">
-    <SiteHeader />
+  <!-- ================= HERO (centred) ================= -->
+  <section class="hero wrap">
+    <h1 class="rise">Print them<br>a <span class="hl">voice.</span></h1>
+    <p class="sub rise d1">
+      For speech therapists, parents and teachers. Pick from 50,000
+      open-source icons, place them on the grid, label each card, and
+      print — the sheet you see is the sheet that prints.
+    </p>
+    <div class="cta-row rise d2">
+      <NuxtLink class="btn mint" to="/app">Make your chart</NuxtLink>
+      <span class="fact">No sign-up · No cost · Works offline</span>
+    </div>
+  </section>
 
-    <!-- ================= HERO (centred) ================= -->
-    <section class="hero wrap">
-      <h1 class="rise">Print them<br>a <span class="hl">voice.</span></h1>
-      <p class="sub rise d1">
-        For speech therapists, parents and teachers. Pick from 50,000
-        open-source icons, place them on the grid, label each card, and
-        print — the sheet you see is the sheet that prints.
-      </p>
-      <div class="cta-row rise d2">
-        <NuxtLink class="btn mint" to="/app">Make your chart</NuxtLink>
-        <span class="fact">No sign-up · No cost · Works offline</span>
-      </div>
-    </section>
+  <!-- ================= DARK BANNER: VERBS + ICON CAROUSEL ================= -->
+  <section class="band fade" aria-label="How it works">
+    <p class="verbs rise d3">
+      <b>Pick</b> a picture<span class="d">·</span><b>place</b> it on the
+      grid<span class="d">·</span><b>print</b> it.
+    </p>
 
-    <!-- ================= DARK BANNER: VERBS + ICON CAROUSEL ================= -->
-    <section class="band fade" aria-label="How it works">
-      <p class="verbs rise d3">
-        <b>Pick</b> a picture<span class="d">·</span><b>place</b> it on the
-        grid<span class="d">·</span><b>print</b> it.
-      </p>
-
-      <div class="marquee">
-        <div class="m-track">
-          <template v-for="set in 2" :key="set">
-            <div
-              v-for="card in marqueeCards"
-              :key="`${set}-${card.label}`"
-              class="m-card"
-              :class="card.tint"
+    <div class="marquee">
+      <div class="m-track">
+        <template v-for="set in 2" :key="set">
+          <div
+            v-for="card in marqueeCards"
+            :key="`${set}-${card.label}`"
+            class="m-card"
+            :class="card.tint"
+          >
+            <img
+              v-if="card.kind === 'img'"
+              class="om"
+              :src="card.icon"
+              alt=""
+              draggable="false"
             >
-              <img
-                v-if="card.kind === 'img'"
-                class="om"
-                :src="card.icon"
-                alt=""
-                draggable="false"
-              >
-              <Icon v-else class="om" :icon="card.icon" aria-hidden="true" />
-              <span>{{ card.label }}</span>
-            </div>
-          </template>
-        </div>
+            <Icon v-else class="om" :icon="card.icon" aria-hidden="true" />
+            <span>{{ card.label }}</span>
+          </div>
+        </template>
       </div>
-    </section>
-
-    <SiteFooter />
-   </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.landing {
-  min-height: 100dvh;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-text);
-  display: flex;
-  flex-direction: column;
-  overflow-x: hidden;
-}
 .wrap { width: 100%; max-width: 900px; margin: 0 auto; padding: 0 28px; }
 a { color: inherit; }
 

@@ -14,13 +14,13 @@ const ghIcon
       <p class="foot-line">
         <NuxtLink to="/" class="brand">TheTalkingChart</NuxtLink>
         <span class="d">·</span> AAC picture communication charts
-        <span class="d">·</span> <a href="https://github.com/danielpaparo98/visual-communication-app" rel="noopener">MIT</a>
+        <span class="d">·</span> <a href="https://github.com/danielpaparo98/TheTalkingChart" rel="noopener">MIT</a>
         <span class="d">·</span> Built by <a href="https://danielpaparo.com" rel="noopener">Daniel Paparo</a>
         <span class="d">·</span> <NuxtLink to="/attributes">Licences</NuxtLink>
         <span class="d">·</span>
         <a
           class="gh"
-          href="https://github.com/danielpaparo98/visual-communication-app"
+          href="https://github.com/danielpaparo98/TheTalkingChart"
           rel="noopener"
           aria-label="TheTalkingChart on GitHub"
         >

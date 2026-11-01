@@ -12,6 +12,10 @@
  * + the print stylesheet.
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+
+/** The builder names the object, not the brand — bare layout, own chrome. */
+definePageMeta({ layout: 'app' })
+
 import AppTopBar from '~/components/AppTopBar.vue'
 import IconBrowser from '~/components/IconBrowser.vue'
 import ChartSheet from '~/components/ChartSheet.vue'
