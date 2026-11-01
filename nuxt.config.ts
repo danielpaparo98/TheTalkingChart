@@ -10,8 +10,9 @@ export default defineNuxtConfig({
   ssr: false,
 
   app: {
-    // Matches GitHub repo name so deployment "just works"
-    baseURL: '/visual-communication-app/',
+    // Root base — the app is served at the custom domain thetalkingchart.com
+    // (GitHub Pages, deployed from main via .github/workflows/deploy.yml)
+    baseURL: '/',
     buildAssetsDir: 'assets',
     head: {
       link: [
@@ -23,8 +24,8 @@ export default defineNuxtConfig({
           rel: 'stylesheet',
           href: 'https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap',
         },
-        // the logo tile doubles as the favicon (baseURL-aware)
-        { rel: 'icon', type: 'image/svg+xml', href: '/visual-communication-app/favicon.svg' },
+        // the logo tile doubles as the favicon
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       ],
     },
   },
