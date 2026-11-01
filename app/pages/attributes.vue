@@ -4,6 +4,9 @@
  * page so the landing stays one honest screen. Calm, typographic, no
  * marketing: what the tool is built from and under which terms.
  *
+ * Chrome (header/footer/full-height paper) comes from the default layout,
+ * so its spacing is definitionally identical to the landing's.
+ *
  * The icon counts come from the generated registry (same source as the
  * landing). ARASAAC pictograms are fetched online and their attribution
  * travels on every printed chart — noted here too.
@@ -42,80 +45,68 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
-    <SiteHeader />
+  <main class="wrap">
+    <h1>Licences &amp; attribution</h1>
+    <p class="intro rise d1">
+      Everything The Talking Chart is built from, and the terms it carries.
+      Printed charts include their own attribution line for the icon sets
+      actually used.
+    </p>
 
-    <main class="wrap">
-      <h1>Licences &amp; attribution</h1>
-      <p class="intro rise d1">
-        Everything The Talking Chart is built from, and the terms it carries.
-        Printed charts include their own attribution line for the icon sets
-        actually used.
+    <section class="block rise d2" aria-labelledby="icons-title">
+      <h2 id="icons-title">Icon sets</h2>
+      <table class="lic-table">
+        <thead>
+          <tr><th scope="col">Set</th><th scope="col">Icons</th><th scope="col">Licence</th><th scope="col">Availability</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="set in sets" :key="set.prefix">
+            <td>{{ set.label }}</td>
+            <td class="num">{{ set.count.toLocaleString() }}</td>
+            <td>{{ set.license }}</td>
+            <td>bundled · works offline</td>
+          </tr>
+          <tr>
+            <td>ARASAAC</td>
+            <td class="num">~13,000</td>
+            <td>CC BY-NC-SA 4.0</td>
+            <td>online · attribution on the chart</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        ARASAAC pictograms are fetched from arasaac.org when online; every
+        printed chart carries their attribution line automatically.
       </p>
+    </section>
 
-      <section class="block rise d2" aria-labelledby="icons-title">
-        <h2 id="icons-title">Icon sets</h2>
-        <table class="lic-table">
-          <thead>
-            <tr><th scope="col">Set</th><th scope="col">Icons</th><th scope="col">Licence</th><th scope="col">Availability</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="set in sets" :key="set.prefix">
-              <td>{{ set.label }}</td>
-              <td class="num">{{ set.count.toLocaleString() }}</td>
-              <td>{{ set.license }}</td>
-              <td>bundled · works offline</td>
-            </tr>
-            <tr>
-              <td>ARASAAC</td>
-              <td class="num">~13,000</td>
-              <td>CC BY-NC-SA 4.0</td>
-              <td>online · attribution on the chart</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="note">
-          ARASAAC pictograms are fetched from arasaac.org when online; every
-          printed chart carries their attribution line automatically.
-        </p>
-      </section>
+    <section class="block" aria-labelledby="type-title">
+      <h2 id="type-title">Type</h2>
+      <table class="lic-table">
+        <thead>
+          <tr><th scope="col">Face</th><th scope="col">Used for</th><th scope="col">Licence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Work Sans</td><td>interface and charts</td><td>SIL OFL 1.1</td></tr>
+          <tr><td>Anton</td><td>landing display</td><td>SIL OFL 1.1</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-      <section class="block" aria-labelledby="type-title">
-        <h2 id="type-title">Type</h2>
-        <table class="lic-table">
-          <thead>
-            <tr><th scope="col">Face</th><th scope="col">Used for</th><th scope="col">Licence</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Work Sans</td><td>interface and charts</td><td>SIL OFL 1.1</td></tr>
-            <tr><td>Anton</td><td>landing display</td><td>SIL OFL 1.1</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="block" aria-labelledby="code-title">
-        <h2 id="code-title">The app</h2>
-        <table class="lic-table">
-          <thead>
-            <tr><th scope="col">Part</th><th scope="col">Detail</th><th scope="col">Licence</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>The Talking Chart</td><td>built by <a href="https://danielpaparo.com" rel="noopener">Daniel Paparo</a></td><td>MIT</td></tr>
-          </tbody>
-        </table>
-      </section>
-    </main>
-
-    <SiteFooter />
-  </div>
+    <section class="block" aria-labelledby="code-title">
+      <h2 id="code-title">The app</h2>
+      <table class="lic-table">
+        <thead>
+          <tr><th scope="col">Part</th><th scope="col">Detail</th><th scope="col">Licence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>The Talking Chart</td><td>built by <a href="https://danielpaparo.com" rel="noopener">Daniel Paparo</a></td><td>MIT</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
 </template>
 <style scoped>
-.page {
-  flex: 1 1 auto;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-text);
-}
 .wrap { width: 100%; max-width: 820px; margin: 0 auto; padding: 0 28px; }
 a { color: inherit; }
 
