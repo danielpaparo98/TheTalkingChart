@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /**
  * index.vue — the builder. Card-first: the sheet leads, and the primary
- * flow is "tap a card, type what it should say". Collection browsing is a
- * drawer (Browse pictures); the compact editor anchors to a selected
- * filled card; the word picker sprouts from the asking empty card and
- * auto-advances as the chart fills.
+ * flow is "tap a card, type what it should say". The library docks beside
+ * the sheet on desktop (≥1080px — browse while you place) and is a drawer
+ * below that; the compact editor anchors to a selected filled card; the
+ * word picker sprouts from the asking empty card and auto-advances as the
+ * chart fills.
  *
- * Layout: desk ground → 52px top bar → the well (the A4 sheet resting on
- * it). No side panel — the library is one click away, the chart is the
- * screen. Print contract: [data-chart-sheet] + the print stylesheet.
+ * Layout: desk ground → 52px top bar → workspace row (library dock | the
+ * well with the A4 sheet resting on it). Print contract: [data-chart-sheet]
+ * + the print stylesheet.
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppTopBar from '~/components/AppTopBar.vue'
@@ -24,6 +25,7 @@ import { useChartStore } from '~/stores/chart'
 import { useExport } from '~/composables/useExport'
 
 const WIDE_QUERY = '(min-width: 720px)'
+const DESKTOP_QUERY = '(min-width: 1080px)'
 
 const chart = useChartStore()
 const { printChart } = useExport()
@@ -33,24 +35,38 @@ const { printChart } = useExport()
 const exportOpen = ref(false)
 const settingsOpen = ref(false)
 const browseOpen = ref(false)
+const helpOpen = ref(false)
+/** First-run hints dismissed by the user; Help brings them back. */
+const hintsDismissed = ref(false)
 const labelSize = ref<LabelSize>('m')
 
 /** Overlay positions, in px within the well. */
 const pickerPos = ref<{ top: number; left: number; sproutX: number } | null>(null)
 const editorPos = ref<{ top: number; left: number } | null>(null)
 
+const builderEl = ref<HTMLElement | null>(null)
 const wellEl = ref<HTMLElement | null>(null)
-const drawerEl = ref<HTMLElement | null>(null)
 
 const isWide = ref(typeof window !== 'undefined' ? window.matchMedia(WIDE_QUERY).matches : true)
-let mediaQuery: MediaQueryList | null = null
+const isDesktop = ref(typeof window !== 'undefined' ? window.matchMedia(DESKTOP_QUERY).matches : false)
+let wideQuery: MediaQueryList | null = null
+let desktopQuery: MediaQueryList | null = null
 
-function syncIsWide(): void {
-  if (mediaQuery !== null) isWide.value = mediaQuery.matches
+function syncMedia(): void {
+  if (wideQuery !== null) isWide.value = wideQuery.matches
+  if (desktopQuery !== null) isDesktop.value = desktopQuery.matches
 }
 
 /** First-run hint strip: visible until the first card is placed. */
 const showHints = computed(() => chart.placedCount === 0)
+/** The strip renders when first-run hints apply, or Help opened them. */
+const hintsVisible = computed(() => (showHints.value && !hintsDismissed.value) || helpOpen.value)
+
+/**
+ * On desktop the library docks beside the sheet (both stay visible —
+ * browse while you place); below 1080px it is the overlay drawer.
+ */
+const dockOpen = computed(() => browseOpen.value && isDesktop.value)
 
 // --- anchored positioning -------------------------------------------------
 
@@ -133,12 +149,24 @@ function onToggleBrowse(): void {
   if (browseOpen.value) {
     // browsing pauses the card-first flow: the asking card keeps its place
     if (!isWide.value) chart.askSlot(null)
-    void nextTick(() => drawerEl.value?.querySelector<HTMLInputElement>('input[type="search"]')?.focus())
+    void nextTick(() => {
+      builderEl.value?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
+    })
   }
 }
 
 function onToggleSettings(): void {
   settingsOpen.value = !settingsOpen.value
+}
+
+function onToggleHelp(): void {
+  helpOpen.value = !helpOpen.value
+}
+
+/** Close button on the hint strip: dismiss first-run hints for the session. */
+function onDismissHints(): void {
+  helpOpen.value = false
+  hintsDismissed.value = true
 }
 
 function onToggleStyleLabelSize(size: LabelSize): void {
@@ -148,11 +176,33 @@ function onToggleStyleLabelSize(size: LabelSize): void {
 /** After a drawer pick on phone, close the drawer to reveal the chart. */
 function onDrawerPick(): void {
   if (!isWide.value) browseOpen.value = false
-}
-
-// --- keyboard: Escape unwinds export → settings → drawer → picker → selection
+}// --- keyboard: Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl+Y redo · Escape
+// unwinds export → settings → help → drawer → picker → selection
 
 function onKeydown(event: KeyboardEvent): void {
+  const target = event.target
+  const inField =
+    target instanceof HTMLElement &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+
+  if ((event.ctrlKey || event.metaKey) && !inField) {
+    const key = event.key.toLowerCase()
+    if (key === 'z') {
+      event.preventDefault()
+      if (event.shiftKey) chart.redo()
+      else chart.undo()
+      return
+    }
+    if (key === 'y') {
+      event.preventDefault()
+      chart.redo()
+      return
+    }
+  }
+
   if (event.key !== 'Escape') return
   if (exportOpen.value) {
     exportOpen.value = false
@@ -160,6 +210,10 @@ function onKeydown(event: KeyboardEvent): void {
   }
   if (settingsOpen.value) {
     settingsOpen.value = false
+    return
+  }
+  if (helpOpen.value) {
+    helpOpen.value = false
     return
   }
   if (browseOpen.value) {
@@ -190,84 +244,121 @@ watch(
   () => repositionAnchors(),
 )
 
+// Opening/closing the dock shifts the well — anchors must follow.
+watch(dockOpen, () => repositionAnchors())
+
 function onResize(): void {
   repositionAnchors()
 }
 
 onMounted(() => {
-  mediaQuery = window.matchMedia(WIDE_QUERY)
-  syncIsWide()
-  mediaQuery.addEventListener('change', syncIsWide)
+  wideQuery = window.matchMedia(WIDE_QUERY)
+  desktopQuery = window.matchMedia(DESKTOP_QUERY)
+  syncMedia()
+  wideQuery.addEventListener('change', syncMedia)
+  desktopQuery.addEventListener('change', syncMedia)
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
-  mediaQuery?.removeEventListener('change', syncIsWide)
+  wideQuery?.removeEventListener('change', syncMedia)
+  desktopQuery?.removeEventListener('change', syncMedia)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
 })
 </script>
 
 <template>
-  <div class="builder">
+  <div ref="builderEl" class="builder">
     <AppTopBar
       @toggle-browse="onToggleBrowse"
       @toggle-settings="onToggleSettings"
       @open-export="exportOpen = true"
+      @toggle-help="onToggleHelp"
       @print="printChart"
     />
 
-    <!-- the desk: the sheet rests here, nothing else competes -->
-    <main ref="wellEl" class="well" :data-label-size="labelSize" aria-label="Chart sheet">
-      <ChartSheet />
-
-      <!-- the word picker, sprouting from the asking card -->
-      <Transition name="pop">
-        <WordPicker
-          v-if="chart.askingSlot !== null"
-          class="picker-anchor"
-          :style="
-            pickerPos !== null
-              ? { top: pickerPos.top + 'px', left: pickerPos.left + 'px', '--sprout-x': pickerPos.sproutX + 'px' }
-              : undefined
-          "
-          @close="chart.askSlot(null)"
-        />
-      </Transition>
-
-      <!-- the compact editor, anchored to the selected filled card -->
-      <Transition name="pop">
-        <div
-          v-if="chart.selectedSlot !== null"
-          class="editor-anchor"
-          :style="editorPos !== null ? { top: editorPos.top + 'px', left: editorPos.left + 'px' } : undefined"
+    <!-- the workspace: the docked library (desktop) beside the sheet's desk -->
+    <div class="workspace">
+      <Transition name="dock">
+        <aside
+          v-if="dockOpen"
+          class="library-dock"
+          aria-label="Picture library"
         >
-          <SlotEditor @replace="onToggleBrowse" />
-        </div>
+          <IconBrowser @pick="onDrawerPick" />
+        </aside>
       </Transition>
 
-      <!-- chart settings popover -->
-      <Transition name="pop">
-        <div v-if="settingsOpen" class="settings-anchor">
-          <StyleControls @close="settingsOpen = false" @label-size="onToggleStyleLabelSize" />
+      <!-- the desk: the sheet rests here, nothing else competes -->
+      <main ref="wellEl" class="well" :data-label-size="labelSize" aria-label="Chart sheet">
+        <!-- click-away surface that closes the settings popover -->
+        <div
+          v-if="settingsOpen"
+          class="settings-scrim"
+          aria-hidden="true"
+          @click="settingsOpen = false"
+        ></div>
+
+        <ChartSheet />
+
+        <!-- the word picker, sprouting from the asking card -->
+        <Transition name="pop">
+          <WordPicker
+            v-if="chart.askingSlot !== null"
+            class="picker-anchor"
+            :style="
+              pickerPos !== null
+                ? { top: pickerPos.top + 'px', left: pickerPos.left + 'px', '--sprout-x': pickerPos.sproutX + 'px' }
+                : undefined
+            "
+            @close="chart.askSlot(null)"
+          />
+        </Transition>
+
+        <!-- the compact editor, anchored to the selected filled card -->
+        <Transition name="pop">
+          <div
+            v-if="chart.selectedSlot !== null"
+            class="editor-anchor"
+            :style="editorPos !== null ? { top: editorPos.top + 'px', left: editorPos.left + 'px' } : undefined"
+          >
+            <SlotEditor @replace="onToggleBrowse" />
+          </div>
+        </Transition>
+
+        <!-- chart settings popover -->
+        <Transition name="pop">
+          <div v-if="settingsOpen" class="settings-anchor">
+            <StyleControls @close="settingsOpen = false" @label-size="onToggleStyleLabelSize" />
+          </div>
+        </Transition>
+
+        <!-- hints: first-run, or summoned any time via Help -->
+        <div v-if="hintsVisible" class="hint-strip" :class="{ 'is-help': helpOpen }">
+          <span><b>Tap a card</b> and type what it should say</span>
+          <span><b>Pick a picture</b> — the next card asks</span>
+          <span><b>Click a label</b> to rename it</span>
+          <button
+            type="button"
+            class="hint-close"
+            aria-label="Dismiss hints"
+            @click="onDismissHints"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </button>
         </div>
-      </Transition>
+      </main>
+    </div>
 
-      <!-- first-run hints: they leave once the chart has its first card -->
-      <div v-if="showHints" class="hint-strip">
-        <span><b>Tap a card</b> and type what it should say</span>
-        <span><b>Pick a picture</b> — the next card asks</span>
-        <span><b>Click a label</b> to rename it</span>
-      </div>
-    </main>
-
-    <!-- Browse pictures: the collection drawer -->
+    <!-- Browse pictures: the collection drawer (below desktop widths) -->
     <Transition name="drawer">
-      <div v-if="browseOpen" class="drawer-scrim" @click="browseOpen = false">
+      <div v-if="browseOpen && !isDesktop" class="drawer-scrim" @click="browseOpen = false">
         <div
           id="icon-browser-drawer"
-          ref="drawerEl"
           class="drawer"
           role="dialog"
           aria-label="Browse pictures"
@@ -291,15 +382,38 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* the workspace row: docked library (desktop) beside the sheet's desk */
+.workspace {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+}
+
+/* the docked library: 300px of always-visible browsing, sheet beside it */
+.library-dock {
+  flex: none;
+  width: 300px;
+  margin: 0 0 14px 14px;
+  overflow: hidden;
+}
+
 /* the desk: the sheet rests here, centred, nothing else competes */
 .well {
   flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   margin: 0 14px 14px;
   border-radius: 12px;
   padding: 32px;
   position: relative;
   display: flex;
+}
+
+/* transparent click-away under the settings popover (above the sheet) */
+.settings-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
 }
 
 [data-label-size='s'] { --slot-label-scale: 0.85; }
@@ -317,15 +431,16 @@ onUnmounted(() => {
   right: 12px;
 }
 
-/* first-run hints: one quiet pill, three facts */
+/* first-run hints: one quiet pill, three facts, dismissible */
 .hint-strip {
   position: absolute;
   bottom: 14px;
   left: 50%;
   translate: -50% 0;
   display: flex;
+  align-items: center;
   gap: 22px;
-  padding: 6px 16px;
+  padding: 6px 10px 6px 16px;
   border-radius: 999px;
   background: var(--paper);
   border: 1px solid var(--border);
@@ -334,6 +449,20 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .hint-strip b { font-weight: 600; color: var(--text); }
+.hint-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.hint-close:hover { background: var(--raised); color: var(--text); }
 
 /* browse drawer: the library, one click away */
 .drawer-scrim {
@@ -359,6 +488,9 @@ onUnmounted(() => {
 .pop-enter-active, .pop-leave-active { transition: opacity 150ms ease, translate 150ms ease; }
 .pop-enter-from, .pop-leave-to { opacity: 0; translate: 0 6px; }
 
+.dock-enter-active, .dock-leave-active { transition: opacity 160ms ease, translate 160ms ease; }
+.dock-enter-from, .dock-leave-to { opacity: 0; translate: -12px 0; }
+
 .drawer-enter-active, .drawer-leave-active { transition: opacity 200ms ease; }
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: translate 220ms ease; }
@@ -366,6 +498,7 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .pop-enter-active, .pop-leave-active,
+  .dock-enter-active, .dock-leave-active,
   .drawer-enter-active, .drawer-leave-active,
   .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: none; }
 }
@@ -373,9 +506,19 @@ onUnmounted(() => {
 /* ---------------- phone: its own composition ---------------- */
 @media (max-width: 720px) {
   .well { padding: 14px; margin: 0 10px 10px; overflow-y: auto; display: block; }
-  .picker-anchor, .editor-anchor, .settings-anchor { position: fixed; left: 10px; right: 10px; top: auto; bottom: 10px; z-index: 30; }
+  .picker-anchor, .editor-anchor, .settings-anchor { position: fixed; left: 10px; right: 10px; top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; }
   .settings-anchor { top: auto; }
+  /* the auto hint strip stays off on phone; Help opens it as a stacked card */
   .hint-strip { display: none; }
+  .hint-strip.is-help {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    white-space: normal;
+    top: 62px;
+    bottom: auto;
+  }
   .drawer { width: min(320px, 86vw); }
 }
 </style>

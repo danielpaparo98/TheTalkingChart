@@ -1,6 +1,6 @@
 # The Talking Chart
 
-**Free, printable PECs communication charts for everyone.**
+**Free, printable picture communication charts — live at [thetalkingchart.com](https://thetalkingchart.com/).**
 
 Browse ~50,000 open-source icons, arrange them on a chart grid, add labels, and
 print. No sign-up, no cost, no tracking. Runs entirely in your browser — the icon
@@ -8,14 +8,19 @@ library works offline.
 
 ## Features
 
+- **Card-first builder** — tap a card, type what it should say, pick a picture;
+  the next empty card asks automatically as the chart fills
+- **Undo / redo** — every placement, label, colour and grid change is one
+  step back (Ctrl/Cmd+Z)
 - **~49,800 offline icons** across four open-source sets — Material Design Icons,
   Material Symbols, Tabler, and OpenMoji — bundled locally, searchable, browsable
-  by category
+  by category; the library docks beside the sheet on wide screens
 - **ARASAAC online pictograms** — optional live search of the ARASAAC AAC
   pictogram library (~13,000 pictograms, CC BY-NC-SA), with attribution handled
   automatically
-- **Chart grid** — 2×2, 3×3, 4×5 and 5×4 presets; click an icon to place it
-- **Editable labels & card colors** — give each card a short, clear label
+- **Chart grid** — 2×2, 3×3, 4×5 and 5×4 presets, switchable from the toolbar
+- **Editable labels & card colours** — give each card a short, clear label and a
+  warm pastel tint
 - **True-to-print canvas** — the editor shows an actual A4 landscape sheet with
   the printable area marked; what you see is what prints
 - **Print, PNG and PDF export** — clean A4 landscape output with icon licenses
@@ -32,8 +37,8 @@ library works offline.
 | State | Pinia + localStorage |
 | Icons | @iconify/vue with offline IconifyJSON bundles + ARASAAC API |
 | Export | html2canvas-pro + jsPDF; native browser print |
-| Fonts | Barlow + Barlow Condensed |
-| Deployment | GitHub Pages (via Nuxt generate) |
+| Fonts | Anton (landing display) + Work Sans (UI) |
+| Deployment | GitHub Actions → GitHub Pages → thetalkingchart.com |
 
 ## Icon library
 
@@ -67,17 +72,16 @@ bun run generate
 bun run preview
 ```
 
-> Local preview note: `nuxt preview` serves the static output at the site root,
-> but the app is built for the `/visual-communication-app/` sub-path (GitHub
-> Pages project sites). Previewing locally requires a static server that serves
-> the output under that prefix; on GitHub Pages it works as-is.
-
 ## Deployment
 
-The app deploys to GitHub Pages automatically via GitHub Actions when pushing to
-the `main` branch.
+Every push to `main` builds the static site with Bun + Nuxt and deploys it to
+GitHub Pages via [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
+GitHub Pages serves the result at the custom domain
+**https://thetalkingchart.com/**.
 
-The live site is at: **https://papar.github.io/visual-communication-app/**
+> Note: an early version of this site (a static README page) lived on the
+> `master` branch. It is superseded — `main` is the deployment branch and the
+> Pages source is the GitHub Actions workflow.
 
 ### Manual deploy
 

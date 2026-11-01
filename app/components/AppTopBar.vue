@@ -1,21 +1,26 @@
 <script setup lang="ts">
 /**
  * AppTopBar — the builder's 52px top bar. Left: exit arrow + the chart's
- * name (inline-editable). Right: placement progress ("8 of 16 placed" with
- * a tiny bar — momentum you can see), Browse pictures (opens the drawer),
- * chart settings, Export, and the one ink-filled primary: Print.
+ * name (inline-editable) + undo/redo. Right: placement progress ("8 of 16
+ * placed" with a tiny bar — momentum you can see), Browse pictures (docks
+ * the library on wide screens, drawer below), grid size, chart settings,
+ * Export, help, and the one ink-filled primary: Print.
  *
  * The bar's name input and the sheet's inline title edit the same store
  * value — the sheet is the primary edit point (WYSIWYG); the bar keeps
- * the name visible for orientation.
+ * the name visible for orientation. Undo/redo talk straight to the chart
+ * store's history; the page owns the Ctrl/Cmd+Z keyboard shortcuts.
  */
 import { computed } from 'vue'
+import SegmentedControl from './SegmentedControl.vue'
 import { useChartStore } from '../stores/chart'
+import type { GridPreset } from '../types/chart'
 
 const emit = defineEmits<{
   (e: 'toggle-browse'): void
   (e: 'toggle-settings'): void
   (e: 'open-export'): void
+  (e: 'toggle-help'): void
   (e: 'print'): void
 }>()
 
@@ -31,6 +36,21 @@ const totalCount = computed(() => chart.gridSize)
 const progressPct = computed(() =>
   totalCount.value === 0 ? 0 : Math.round((placedCount.value / totalCount.value) * 100),
 )
+
+/** Grid presets, surfaced in the bar (the settings panel repeats them). */
+const GRID_OPTIONS = [
+  { value: '2x2', label: '2 × 2' },
+  { value: '3x3', label: '3 × 3' },
+  { value: '4x5', label: '4 × 5' },
+  { value: '5x4', label: '5 × 4' },
+] as const satisfies ReadonlyArray<{ value: GridPreset; label: string }>
+
+const gridPreset = computed({
+  get: () => chart.doc.grid,
+  set: (preset: string) => {
+    chart.setGrid(preset as GridPreset)
+  },
+})
 
 function onTitleInput(event: Event): void {
   chart.setTitle((event.target as HTMLInputElement).value)
@@ -65,6 +85,36 @@ function onTitleInput(event: Event): void {
       @input="onTitleInput"
     >
 
+    <!-- Undo / redo: the safety net, always in reach -->
+    <div class="flex shrink-0 items-center gap-0.5">
+      <button
+        type="button"
+        class="icon-btn"
+        :disabled="!chart.canUndo"
+        aria-label="Undo"
+        title="Undo (Ctrl+Z)"
+        @click="chart.undo()"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M6 3 3 6l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 6h6.25a3.5 3.5 0 0 1 0 7H6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="icon-btn"
+        :disabled="!chart.canRedo"
+        aria-label="Redo"
+        title="Redo (Ctrl+Shift+Z)"
+        @click="chart.redo()"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="m10 3 3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M13 6H6.75a3.5 3.5 0 0 0 0 7h2.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
     <div class="ml-auto flex shrink-0 items-center gap-2.5">
       <!-- placement progress: momentum you can see -->
       <span class="progress hidden items-center gap-2 text-[13px] font-medium text-muted sm:inline-flex">
@@ -82,19 +132,43 @@ function onTitleInput(event: Event): void {
         </span>
       </button>
 
-      <span class="hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span><!-- taste-skill-ignore -->
+      <span class="hidden h-5 w-px bg-border lg:block" aria-hidden="true"></span><!-- taste-skill-ignore -->
 
-      <!-- Chart settings (grid, labels, new chart) -->
-      <button type="button" class="icon-btn" aria-label="Chart settings" @click="emit('toggle-settings')">
+      <!-- Grid size: surfaced in the bar on wide screens (settings repeats it).
+           The wrapper owns visibility: the control's own scoped display wins
+           over utilities. -->
+      <div class="hidden lg:flex">
+        <SegmentedControl
+          v-model="gridPreset"
+          :options="GRID_OPTIONS"
+          label="Grid size"
+        />
+      </div>
+
+      <span class="hidden h-5 w-px bg-border lg:block" aria-hidden="true"></span><!-- taste-skill-ignore -->
+
+      <!-- Chart settings (title, grid, labels, new chart) -->
+      <button type="button" class="icon-btn lbl-btn" aria-label="Chart settings" @click="emit('toggle-settings')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M2 4.75h5.5M11.9 4.75H14M2 11.25h2.1M7.9 11.25H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="4.75" r="1.9" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="11.25" r="1.9" stroke="currentColor" stroke-width="1.5"/>
         </svg>
+        <span class="lbl hidden xl:inline">Settings</span>
       </button>
 
       <!-- Export: PNG/PDF live behind the print dialog -->
-      <button type="button" class="icon-btn" aria-label="Export" @click="emit('open-export')">
+      <button type="button" class="icon-btn lbl-btn" aria-label="Export" @click="emit('open-export')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M8 2.25v7.5M4.9 6.9 8 10l3.1-3.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.75v1A1.75 1.75 0 0 0 4.25 13.5h7.5a1.75 1.75 0 0 0 1.75-1.75v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="lbl hidden xl:inline">Export</span>
+      </button>
+
+      <!-- Help: brings the first-run hints back -->
+      <button type="button" class="icon-btn" aria-label="Help" title="Help" @click="emit('toggle-help')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6.45 6.3a1.6 1.6 0 1 1 2.2 1.49c-.44.17-.65.47-.65.91v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="8" cy="11.2" r="0.95" fill="currentColor"/>
         </svg>
       </button>
 
@@ -144,6 +218,12 @@ function onTitleInput(event: Event): void {
   background: transparent; color: var(--muted);
 }
 .icon-btn:hover { background: rgba(0, 0, 0, 0.05); color: var(--text); }
+.icon-btn:disabled { opacity: 0.35; cursor: default; }
+.icon-btn:disabled:hover { background: transparent; color: var(--muted); }
+
+/* icon + optional text label (Settings / Export at xl) */
+.lbl-btn { width: auto; gap: 6px; padding: 0 10px; }
+.lbl-btn .lbl { font-size: 14px; font-weight: 500; }
 
 .primary {
   height: 38px; padding: 0 24px;
@@ -153,14 +233,16 @@ function onTitleInput(event: Event): void {
 .primary:hover { opacity: 0.88; }
 
 @media (max-width: 720px) {
-  .name { max-width: 150px; font-size: 15px; }
+  /* 44px touch floor for the bar's icon buttons */
+  .icon-btn { width: 44px; height: 44px; }
 }
+
 @media (max-width: 480px) {
-  .name { max-width: 120px; font-size: 14px; }
-  /* the two secondary actions fold away on the smallest screens —
-     Print stays; Export/settings return at ≥481px */
-  .topbar .icon-btn { display: none; }
-  .browse { width: 38px; padding: 0; justify-content: center; }
+  /* Everything stays reachable on the smallest screens — the labeled
+     buttons condense to icons and the name flexes down */
+  .lbl-btn { width: 44px; padding: 0; justify-content: center; }
+  .lbl-btn .lbl { display: none; }
+  .browse { width: 44px; padding: 0; justify-content: center; }
   .browse .lbl { display: none; }
 }
 </style>
