@@ -18,7 +18,16 @@ definePageMeta({ layout: 'app' })
 
 /** The builder never set a document title — orientation for tabs, history
  *  and screen readers (WCAG 2.4.2). */
-useHead({ title: 'Chart builder — The Talking Chart' })
+useHead({
+  title: 'Chart builder — The Talking Chart',
+  meta: [
+    {
+      name: 'description',
+      content:
+        'Build a printable picture communication chart: pick from 50,000 icons, place them on the grid, label each card, and print. Free and works offline.',
+    },
+  ],
+})
 
 import AppTopBar from '~/components/AppTopBar.vue'
 import IconBrowser from '~/components/IconBrowser.vue'
