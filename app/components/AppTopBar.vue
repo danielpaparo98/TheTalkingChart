@@ -16,6 +16,16 @@ import SegmentedControl from './SegmentedControl.vue'
 import { useChartStore } from '../stores/chart'
 import type { GridPreset } from '../types/chart'
 
+/**
+ * Panel open states come from the page (it owns the panels) so the toggle
+ * buttons can expose aria-expanded (WCAG 4.1.2 state communication).
+ */
+defineProps<{
+  browseOpen: boolean
+  settingsOpen: boolean
+  helpOpen: boolean
+}>()
+
 const emit = defineEmits<{
   (e: 'toggle-browse'): void
   (e: 'toggle-settings'): void
@@ -116,16 +126,26 @@ function onTitleInput(event: Event): void {
     </div>
 
     <div class="ml-auto flex shrink-0 items-center gap-2.5">
-      <!-- placement progress: momentum you can see -->
-      <span class="progress hidden items-center gap-2 text-[13px] font-medium text-muted sm:inline-flex">
+      <!-- placement progress: momentum you can see. role=status announces
+           each change politely as icons land (WCAG 4.1.3). -->
+      <span role="status" class="progress hidden items-center gap-2 text-[13px] font-medium text-muted sm:inline-flex">
         <b class="font-semibold text-text">{{ placedCount }}</b>
         of {{ totalCount }} placed
         <span class="bar" aria-hidden="true"><i :style="{ width: progressPct + '%' }"></i></span>
       </span>
 
+      <!-- storage refused a write — the user must know work won't persist -->
+      <span v-if="chart.storageError" role="status" class="storage-note">Not saved — storage unavailable</span>
+
       <span class="hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span><!-- taste-skill-ignore -->
 
-      <button type="button" class="tbtn browse" @click="emit('toggle-browse')">
+      <button
+        type="button"
+        class="tbtn browse"
+        aria-label="Browse pictures"
+        :aria-expanded="browseOpen"
+        @click="emit('toggle-browse')"
+      >
         <span class="inline-flex items-center gap-2">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.5"/><path d="m10.4 10.4 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           <span class="lbl">Browse pictures</span>
@@ -148,7 +168,14 @@ function onTitleInput(event: Event): void {
       <span class="hidden h-5 w-px bg-border lg:block" aria-hidden="true"></span><!-- taste-skill-ignore -->
 
       <!-- Chart settings (title, grid, labels, new chart) -->
-      <button type="button" class="icon-btn lbl-btn" aria-label="Chart settings" @click="emit('toggle-settings')">
+      <button
+        type="button"
+        class="icon-btn lbl-btn"
+        aria-label="Chart settings"
+        aria-controls="chart-settings"
+        :aria-expanded="settingsOpen"
+        @click="emit('toggle-settings')"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M2 4.75h5.5M11.9 4.75H14M2 11.25h2.1M7.9 11.25H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="4.75" r="1.9" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="11.25" r="1.9" stroke="currentColor" stroke-width="1.5"/>
         </svg>
@@ -164,7 +191,14 @@ function onTitleInput(event: Event): void {
       </button>
 
       <!-- Help: brings the first-run hints back -->
-      <button type="button" class="icon-btn" aria-label="Help" title="Help" @click="emit('toggle-help')">
+      <button
+        type="button"
+        class="icon-btn"
+        aria-label="Help"
+        title="Help"
+        :aria-expanded="helpOpen"
+        @click="emit('toggle-help')"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5"/>
           <path d="M6.45 6.3a1.6 1.6 0 1 1 2.2 1.49c-.44.17-.65.47-.65.91v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -188,7 +222,19 @@ function onTitleInput(event: Event): void {
   text-overflow: ellipsis;
 }
 .name-input:hover { border-color: var(--border); }
-.name-input:focus { outline: none; border-color: var(--control); background: var(--surface); }
+/* Keep the global :focus-visible outline — the border change is an extra
+   cue, never a replacement (WCAG 2.4.7 / 1.4.11). */
+.name-input:focus { border-color: var(--control); background: var(--surface); }
+
+.storage-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pill-negative-fg);
+  background: var(--pill-negative-bg);
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
 
 .progress .bar {
   display: inline-block;

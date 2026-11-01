@@ -41,7 +41,9 @@
   --color-well: #e7eee2;          /* canvas: one step from the desk */
   --color-border: #e0e8da;
   --color-rule: #f0f4ec;
-  --color-control: #c8d2c2;
+  /* #767f70 ≈ 4.2:1 on white — control borders are often the only
+     component boundary, so they must clear WCAG 1.4.11 (3:1). */
+  --color-control: #767f70;
   --color-text: #131711;
   --color-muted: #5c6657;
 
@@ -93,7 +95,7 @@
   --well: #e7eee2;
   --border: #e0e8da;
   --rule: #f0f4ec;
-  --control: #c8d2c2;
+  --control: #767f70; /* matches @theme --color-control (WCAG 1.4.11) */
   --text: #131711;
   --muted: #5c6657;
   --accent: #2e7d32;

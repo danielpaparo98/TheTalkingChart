@@ -14,7 +14,8 @@
  *
  * Anton appears exactly twice (wordmark + hero line); everything else is
  * Work Sans. Motion: rise entrances + the carousel; all off under
- * reduced motion.
+ * reduced motion. The carousel is decorative motion, so it carries a
+ * visible pause control (WCAG 2.2.2 Pause, Stop, Hide).
  */
 import { addCollection, Icon } from '@iconify/vue'
 import type { IconifyJSON } from '@iconify/vue'
@@ -78,6 +79,9 @@ const marqueeCards = [
   ...ARASAAC_CARDS.map((a) => ({ kind: 'img' as const, icon: a.src, label: a.label, tint: '' })),
 ]
 
+/** Carousel pause state — the marquee must be pausable (WCAG 2.2.2). */
+const paused = ref(false)
+
 /** Load the preview bundle so hero + carousel glyphs render offline. */
 const heroReady = ref(false)
 onMounted(async () => {
@@ -123,7 +127,10 @@ useHead({
     </p>
 
     <div class="marquee">
-      <div class="m-track">
+      <div
+        class="m-track"
+        :style="{ animationPlayState: paused ? 'paused' : 'running' }"
+      >
         <template v-for="set in 2" :key="set">
           <div
             v-for="card in marqueeCards"
@@ -144,6 +151,12 @@ useHead({
         </template>
       </div>
     </div>
+
+    <p class="m-controls">
+      <button type="button" class="m-pause" @click="paused = !paused">
+        {{ paused ? 'Play animation' : 'Pause animation' }}
+      </button>
+    </p>
   </section>
 </template>
 
@@ -237,6 +250,15 @@ a { color: inherit; }
   will-change: transform;
 }
 @keyframes slide { to { transform: translateX(-50%); } }
+.m-controls { margin: 18px 0 0; text-align: center; }
+.m-pause {
+  background: none; border: none; cursor: pointer;
+  color: #fff; font-size: 13px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 3px;
+  padding: 6px 8px; opacity: 0.8;
+  transition: opacity 120ms ease;
+}
+.m-pause:hover, .m-pause:focus-visible { opacity: 1; }
 .m-card {
   flex: none; width: 124px;
   background: var(--paper); color: var(--ink);
@@ -256,6 +278,7 @@ a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .m-track { animation: none; }
+  .marquee { animation: none; }
   .rise, .fade { animation: none; }
 }
 

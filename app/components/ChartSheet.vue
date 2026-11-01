@@ -104,12 +104,17 @@ function onTitleKeydown(event: KeyboardEvent): void {
             @blur="commitTitleEdit"
             @keydown="onTitleKeydown"
           >
-          <h1
-            v-else
-            class="sheet-title sheet-title-view"
-            title="Click to edit the title"
-            @click="startTitleEdit"
-          >{{ title }}</h1>
+          <h1 v-else class="sheet-title sheet-title-view">
+            <!-- The title is a real button inside the heading: tabbable and
+                 named for keyboard and screen-reader users (WCAG 2.1.1),
+                 visually invisible inside the print-true h1 styles. -->
+            <button
+              type="button"
+              class="title-edit-btn"
+              title="Click to edit the title"
+              @click="startTitleEdit"
+            >{{ title }}</button>
+          </h1>
           <div class="sheet-grid">
             <ChartGrid :columns="columns" :rows="rows" />
           </div>
@@ -212,6 +217,21 @@ function onTitleKeydown(event: KeyboardEvent): void {
 /* Quiet editability hint: a dotted underline in the control tone on hover. */
 .sheet-title-view:hover {
   border-bottom-color: var(--control);
+}
+
+/* The edit affordance as a real control — reset so the h1's print-true
+   typography shows through untouched. */
+.title-edit-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: text;
 }
 
 .sheet-title-input {

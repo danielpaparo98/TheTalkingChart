@@ -133,6 +133,8 @@ export const useChartStore = defineStore('chart', () => {
   const askingSlotId = ref<string | null>(null)
   const dirty = ref(false)
   const saved = ref(false)
+  /** True when localStorage refused a write (blocked/full) — surfaced in the top bar. */
+  const storageError = ref(false)
 
   let persistTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -162,8 +164,11 @@ export const useChartStore = defineStore('chart', () => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc.value))
       dirty.value = false
       saved.value = true
+      storageError.value = false
     } catch {
-      // Storage blocked/full — stay dirty so the status pill stays honest.
+      // Storage blocked/full — stay dirty and say so (WCAG 4.1.3: the
+      // failure must be announced, not silent work loss).
+      storageError.value = true
     }
   }
 
@@ -211,7 +216,9 @@ export const useChartStore = defineStore('chart', () => {
       dirty.value = false
       saved.value = true
     } catch {
-      // Storage access denied — keep the fresh default doc, degrade quietly.
+      // Storage access denied — keep the fresh default doc and flag it so
+      // the top bar can tell the user their work will not persist.
+      storageError.value = true
     }
   }
 
@@ -428,6 +435,7 @@ export const useChartStore = defineStore('chart', () => {
     askingSlotId,
     dirty,
     saved,
+    storageError,
     // derived
     columns,
     rows,

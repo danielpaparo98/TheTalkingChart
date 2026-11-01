@@ -15,6 +15,20 @@ export default defineNuxtConfig({
     baseURL: '/',
     buildAssetsDir: 'assets',
     head: {
+      // SPA shell defaults — the pre-hydration HTML must carry a title and
+      // description (crawlers and slow devices see the shell first).
+      // Pages override via useHead when they mount.
+      title: 'The Talking Chart — free printable picture communication charts',
+      meta: [
+        {
+          name: 'description',
+          content:
+            'For speech therapists, parents and teachers. Pick from 50,000 open-source icons, place them on a chart, label each card, and print. Free, no sign-up, works offline.',
+        },
+      ],
+      // SPA mode renders <html> without a lang attribute unless declared
+      // here — required for screen-reader pronunciation (WCAG 3.1.1).
+      htmlAttrs: { lang: 'en' },
       link: [
         // Mint poster system: Anton (landing display) + Work Sans (all UI and
         // the chart sheet) — design_iterations/design-system.md.

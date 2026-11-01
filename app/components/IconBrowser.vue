@@ -25,7 +25,7 @@
  * empty state with search hints. Results scroll inside the panel; the
  * select, search and chips stay visible above the scroller.
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useId } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useCatalogStore } from '~/stores/catalog'
 import { useChartStore } from '~/stores/chart'
@@ -110,6 +110,8 @@ const { beginIconDrag, wasJustDragged } = useIconDrag()
 
 const inputText = ref('')
 const notice = ref<string | null>(null)
+/** Stable id for the search input's visually-hidden label. */
+const searchInputId = useId()
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let noticeTimer: ReturnType<typeof setTimeout> | null = null
@@ -380,8 +382,11 @@ onUnmounted(() => {
         {{ catalog.activeSet.license }}{{ catalog.activeSetIsOnline ? ' — online' : '' }}
       </p>
 
-      <!-- Search: 32px, 1px control border, 14px magnifier -->
+      <!-- Search: 32px, 1px control border, 14px magnifier. The visible
+           placeholder disappears on input, so a real (visually hidden)
+           label carries the accessible name (WCAG 3.3.2). -->
       <div class="relative mt-2">
+        <label :for="searchInputId" class="sr-only">Search icons</label>
         <svg
           class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted"
           viewBox="0 0 16 16"
@@ -392,11 +397,11 @@ onUnmounted(() => {
           <path d="m10.4 10.4 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
         <input
+          :id="searchInputId"
           :value="inputText"
           type="search"
           autocomplete="off"
           spellcheck="false"
-          aria-label="Search icons"
           :placeholder="searchPlaceholder"
           class="h-8 w-full min-w-0 rounded-control border border-control bg-surface pl-8 pr-2 text-body text-text placeholder:text-muted/60"
           @input="onSearchInput"
@@ -433,8 +438,9 @@ onUnmounted(() => {
 
     <!-- Results: the only scroller in the panel -->
     <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-1">
-      <!-- Quiet inline error + Retry text button (never a takeover) -->
-      <div v-if="panelError !== null && !showSkeleton" class="rounded-control bg-raised px-3 py-2.5">
+      <!-- Quiet inline error + Retry text button (never a takeover).
+           role=alert: offline users must hear the failure, not just see it. -->
+      <div v-if="panelError !== null && !showSkeleton" role="alert" class="rounded-control bg-raised px-3 py-2.5">
         <p class="text-small text-muted">{{ panelError.message }}</p>
         <button
           type="button"
@@ -498,13 +504,10 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Full results (search / category / non-default set) -->
-        <div
-          v-if="catalog.results.length > 0"
-          role="group"
-          aria-label="Icon results"
-          :class="showStarter ? 'mt-1' : ''"
-        >
+        <!-- Full results (search / category / non-default set). Plain wrapper:
+             the keyboard-navigable grid below is the real group — two nested
+             groups with one name double-announce. -->
+        <div v-if="catalog.results.length > 0" :class="showStarter ? 'mt-1' : ''">
           <p v-if="showStarter" class="group-label">All pictures</p>
           <div
             role="group"

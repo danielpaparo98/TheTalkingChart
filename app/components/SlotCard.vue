@@ -130,7 +130,7 @@ watch(isSelected, (selected) => {
       }"
       :style="cardStyle"
       :aria-label="ariaLabel"
-      :aria-pressed="isSelected"
+      :aria-pressed="hasIcon ? isSelected : undefined"
       @click="onCardClick"
     >
       <template v-if="hasIcon">

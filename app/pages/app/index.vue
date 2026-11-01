@@ -16,6 +16,19 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 /** The builder names the object, not the brand — bare layout, own chrome. */
 definePageMeta({ layout: 'app' })
 
+/** The builder never set a document title — orientation for tabs, history
+ *  and screen readers (WCAG 2.4.2). */
+useHead({
+  title: 'Chart builder — The Talking Chart',
+  meta: [
+    {
+      name: 'description',
+      content:
+        'Build a printable picture communication chart: pick from 50,000 icons, place them on the grid, label each card, and print. Free and works offline.',
+    },
+  ],
+})
+
 import AppTopBar from '~/components/AppTopBar.vue'
 import IconBrowser from '~/components/IconBrowser.vue'
 import ChartSheet from '~/components/ChartSheet.vue'
@@ -43,6 +56,28 @@ const helpOpen = ref(false)
 /** First-run hints dismissed by the user; Help brings them back. */
 const hintsDismissed = ref(false)
 const labelSize = ref<LabelSize>('m')
+
+/**
+ * Chart-event announcements for screen readers (WCAG 4.1.3): a single
+ * polite live region fed by placements, removals, undo and redo.
+ */
+const announcement = ref('')
+
+function announce(message: string): void {
+  // Clear first so repeated identical messages re-announce.
+  announcement.value = ''
+  void nextTick(() => {
+    announcement.value = message
+  })
+}
+
+watch(
+  () => chart.placedCount,
+  (now, before) => {
+    if (now > before) announce(`Picture placed — ${now} of ${chart.gridSize} on the chart`)
+    else if (now < before) announce(`Card removed — ${now} of ${chart.gridSize} filled`)
+  },
+)
 
 /** Overlay positions, in px within the well. */
 const pickerPos = ref<{ top: number; left: number; sproutX: number } | null>(null)
@@ -159,6 +194,26 @@ function onToggleBrowse(): void {
   }
 }
 
+/**
+ * Focus return for the browse drawer (WCAG 2.4.3): remember the trigger
+ * when the drawer opens; on close, put focus back where it started
+ * instead of dropping it on <body>.
+ */
+let browseTrigger: HTMLElement | null = null
+
+watch(browseOpen, (open) => {
+  if (open) {
+    browseTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  } else if (browseTrigger !== null) {
+    // The trigger may be gone (e.g. the word picker closed with us) —
+    // fall back to the top bar's Browse button so keyboard users are
+    // never stranded on <body>.
+    if (browseTrigger.isConnected) browseTrigger.focus()
+    else builderEl.value?.querySelector<HTMLElement>('.tbtn.browse')?.focus()
+    browseTrigger = null
+  }
+})
+
 function onToggleSettings(): void {
   settingsOpen.value = !settingsOpen.value
 }
@@ -180,7 +235,18 @@ function onToggleStyleLabelSize(size: LabelSize): void {
 /** After a drawer pick on phone, close the drawer to reveal the chart. */
 function onDrawerPick(): void {
   if (!isWide.value) browseOpen.value = false
-}// --- keyboard: Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl+Y redo · Escape
+}
+
+/**
+ * "Browse the library" from the word picker: retire the asking card's
+ * picker and open the full library (dock on desktop, drawer below).
+ */
+function onPickerBrowse(): void {
+  chart.askSlot(null)
+  if (!browseOpen.value) onToggleBrowse()
+}
+
+// --- keyboard: Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl+Y redo · Escape
 // unwinds export → settings → help → drawer → picker → selection
 
 function onKeydown(event: KeyboardEvent): void {
@@ -196,13 +262,19 @@ function onKeydown(event: KeyboardEvent): void {
     const key = event.key.toLowerCase()
     if (key === 'z') {
       event.preventDefault()
-      if (event.shiftKey) chart.redo()
-      else chart.undo()
+      if (event.shiftKey) {
+        chart.redo()
+        announce('Redo — change reapplied')
+      } else {
+        chart.undo()
+        announce('Undo — last change reversed')
+      }
       return
     }
     if (key === 'y') {
       event.preventDefault()
       chart.redo()
+      announce('Redo — change reapplied')
       return
     }
   }
@@ -276,12 +348,18 @@ onUnmounted(() => {
 <template>
   <div ref="builderEl" class="builder">
     <AppTopBar
+      :browse-open="browseOpen"
+      :settings-open="settingsOpen"
+      :help-open="helpOpen"
       @toggle-browse="onToggleBrowse"
       @toggle-settings="onToggleSettings"
       @open-export="exportOpen = true"
       @toggle-help="onToggleHelp"
       @print="printChart"
     />
+
+    <!-- screen-reader announcements: placements, removals, undo/redo -->
+    <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
 
     <!-- the workspace: the docked library (desktop) beside the sheet's desk -->
     <div class="workspace">
@@ -318,6 +396,7 @@ onUnmounted(() => {
                 : undefined
             "
             @close="chart.askSlot(null)"
+            @browse="onPickerBrowse"
           />
         </Transition>
 
@@ -334,7 +413,7 @@ onUnmounted(() => {
 
         <!-- chart settings popover -->
         <Transition name="pop">
-          <div v-if="settingsOpen" class="settings-anchor">
+          <div v-if="settingsOpen" id="chart-settings" class="settings-anchor">
             <StyleControls @close="settingsOpen = false" @label-size="onToggleStyleLabelSize" />
           </div>
         </Transition>
@@ -365,9 +444,21 @@ onUnmounted(() => {
           id="icon-browser-drawer"
           class="drawer"
           role="dialog"
+          aria-modal="true"
           aria-label="Browse pictures"
           @click.stop
         >
+          <!-- visible close: touch has no Escape key -->
+          <button
+            type="button"
+            class="drawer-close"
+            aria-label="Close pictures"
+            @click="browseOpen = false"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </button>
           <IconBrowser @pick="onDrawerPick" />
         </div>
       </div>
@@ -450,7 +541,11 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   font-size: 12px;
   color: var(--muted);
-  white-space: nowrap;
+  /* wrap instead of clipping at mid widths (WCAG 1.4.10 reflow) */
+  flex-wrap: wrap;
+  white-space: normal;
+  max-width: calc(100% - 28px);
+  text-align: left;
 }
 .hint-strip b { font-weight: 600; color: var(--text); }
 .hint-close {
@@ -487,6 +582,25 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
 }
+.drawer-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.drawer-close:hover { background: var(--raised); color: var(--text); }
+/* keep the set-select clear of the drawer's close button */
+.drawer :deep(.set-row) { padding-right: 44px; }
 
 /* transitions: transform/opacity only, <400ms, reduced-motion safe */
 .pop-enter-active, .pop-leave-active { transition: opacity 150ms ease, translate 150ms ease; }

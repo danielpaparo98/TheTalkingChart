@@ -26,6 +26,8 @@ const SEARCH_DEBOUNCE_MS = 200
 
 const emit = defineEmits<{
   (e: 'close'): void
+  /** Ask the page to open the picture library (dock or drawer). */
+  (e: 'browse'): void
 }>()
 
 const chart = useChartStore()
@@ -117,18 +119,34 @@ function place(entry: IconSearchEntry): void {
   chart.askNextAfter(slot.id)
 }
 
+/**
+ * Hand focus back to the card this picker sprouts from before it closes,
+ * so keyboard/SR users don't fall to <body> (WCAG 2.4.3).
+ */
+function returnFocusToCard(): void {
+  const cell = document.querySelector<HTMLElement>('.slot-cell.is-asking')
+  const target =
+    cell?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])') ?? cell
+  target?.focus()
+}
+
+function close(): void {
+  returnFocusToCard()
+  emit('close')
+}
+
 function keepEmpty(): void {
   const slot = asking.value
   if (slot !== null && activeColor.value !== null) {
     chart.setSlotColor(slot.id, activeColor.value)
   }
-  emit('close')
+  close()
 }
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
-    emit('close')
+    close()
   } else if (event.key === 'Enter') {
     // Enter picks the first result — the fastest path from word to picture.
     const first = catalog.results[0]
@@ -140,7 +158,16 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 function onKeydownCapture(event: KeyboardEvent): void {
-  if (event.key === 'Escape') emit('close')
+  if (event.key !== 'Escape') return
+  // Another overlay sits above the picker (export dialog, browse drawer,
+  // settings popover) — let the page unwind the topmost layer only;
+  // closing both at once is disorienting.
+  if (document.querySelector('.overlay, .drawer-scrim, .settings-scrim')) return
+  // stopPropagation: the page's own Escape unwinder runs later on the
+  // same event — one keypress closes one layer, never two.
+  event.preventDefault()
+  event.stopPropagation()
+  close()
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydownCapture))
@@ -169,7 +196,7 @@ function setLabel(entry: IconSearchEntry): string {
 
 <template>
   <section class="picker" role="dialog" aria-label="Find a picture for this card">
-    <button class="close" aria-label="Close" @click="emit('close')">
+    <button class="close" aria-label="Close" @click="close()">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2.5 2.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     </button>
 
@@ -190,8 +217,10 @@ function setLabel(entry: IconSearchEntry): string {
     </div>
 
     <div class="results-label">
-      <span>{{ resultsLabel }}</span>
-      <a href="#" @click.prevent>Browse the library →</a>
+      <!-- role=status: search results change silently otherwise — this
+           announces the query and count as they update (WCAG 4.1.3). -->
+      <span role="status">{{ resultsLabel }} · {{ catalog.results.length }} found</span>
+      <button type="button" class="linklike" @click="emit('browse')">Browse the library →</button>
     </div>
 
     <div v-if="searching" class="results" aria-hidden="true">
@@ -218,7 +247,7 @@ function setLabel(entry: IconSearchEntry): string {
       </button>
       <p v-if="catalog.results.length === 0" class="no-results">
         Nothing for “{{ inputText }}” yet — try another word, or
-        <a href="#" @click.prevent>keep it empty</a>.
+        <button type="button" class="linklike" @click="keepEmpty">keep it empty</button>.
       </p>
     </div>
 
@@ -289,6 +318,9 @@ function setLabel(entry: IconSearchEntry): string {
     background: transparent;
   }
   .ask-input::placeholder { color: var(--muted); opacity: 0.5; font-weight: 500; }
+  /* the underline visibly shifts on focus — the input's own focus indicator
+     (WCAG 2.4.7), since the borderless input suppresses outlines */
+  .ask-line:focus-within { border-bottom-color: var(--mint-deep); }
   .caret { width: 2.5px; height: 26px; background: var(--mint-deep); animation: blink 1.1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .results-label {
@@ -297,6 +329,12 @@ function setLabel(entry: IconSearchEntry): string {
   }
   .results-label a { color: var(--mint-deep); font-weight: 600; text-decoration: none; }
   .results-label a:hover { text-decoration: underline; }
+  /* real buttons styled like links — honest controls, not dead anchors */
+  .linklike {
+    border: none; background: none; padding: 2px 4px; cursor: pointer;
+    color: var(--mint-deep); font: inherit; font-weight: 600;
+  }
+  .linklike:hover { text-decoration: underline; }
   .results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .result {
     border: none; border-radius: 12px;
@@ -317,9 +355,7 @@ function setLabel(entry: IconSearchEntry): string {
   .no-results {
     grid-column: 1 / -1; margin: 0; padding: 10px 4px;
     font-size: 13px; color: var(--muted);
-  }
-  .no-results a { color: var(--mint-deep); font-weight: 600; }
-  .foot {
+  }  .foot {
     display: flex; align-items: center; justify-content: space-between;
     margin-top: 16px; padding-top: 14px;
     border-top: 1px solid var(--rule, #f0f4ec); /* taste-skill-ignore */
@@ -327,8 +363,11 @@ function setLabel(entry: IconSearchEntry): string {
   .dots { display: flex; gap: 7px; align-items: center; }
   .dots .cap { font-size: 12px; font-weight: 500; color: var(--muted); margin-right: 2px; }
   .dots .dot {
+    position: relative;
     width: 20px; height: 20px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.07); padding: 0;
   }
+  /* invisible halo lifts the hit area to 28px (WCAG 2.5.8 target size) */
+  .dots .dot::after { content: ""; position: absolute; inset: -4px; }
   .dots .dot.on { outline: 2.5px solid var(--mint-deep); outline-offset: 1.5px; }
   .skip {
     border: none; background: none; color: var(--muted);

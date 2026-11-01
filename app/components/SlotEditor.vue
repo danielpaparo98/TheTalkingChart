@@ -1,9 +1,12 @@
 <script setup lang="ts">
 /**
  * SlotEditor — the compact card editor that anchors to a selected FILLED
- * card. The label edits on the card itself (WYSIWYG); this panel owns what
- * a small card cannot: card colour, replace, clear. The empty-card flow is
- * the WordPicker — this renders only for filled cards.
+ * card. Renaming has two doors: the label edits on the card itself
+ * (WYSIWYG, pointer) and the Label field here (keyboard — the label on
+ * the card is inside the card button, so it can't be its own control).
+ * This panel owns what a small card cannot: label, card colour, replace,
+ * clear. The empty-card flow is the WordPicker — this renders only for
+ * filled cards.
  */
 import { computed, useId } from 'vue'
 import { useChartStore } from '../stores/chart'
@@ -39,6 +42,13 @@ function applyColor(value: string | null): void {
   store.setSlotColor(slot.id, value)
 }
 
+/** Keyboard rename path — mirrors the card's inline edit (WCAG 2.1.1). */
+function onLabelInput(event: Event): void {
+  const slot = selected.value
+  if (slot === null) return
+  store.setSlotLabel(slot.id, (event.target as HTMLInputElement).value)
+}
+
 function clearSelected(): void {
   const slot = selected.value
   if (slot === null) return
@@ -56,7 +66,21 @@ function clearSelected(): void {
       </button>
     </header>
 
-    <p class="hint">Click the label on the card to rename it.</p>
+    <p class="hint">Select the label on the card to rename it — or type in the Label field.</p>
+
+    <div class="field">
+      <label class="field-label" for="slot-label-field">Label</label>
+      <input
+        id="slot-label-field"
+        class="label-input"
+        type="text"
+        :value="selected?.label ?? ''"
+        maxlength="40"
+        autocomplete="off"
+        placeholder="Card label"
+        @input="onLabelInput"
+      >
+    </div>
 
     <div class="field">
       <span :id="colorGroupLabelId" class="field-label">Card color</span>
@@ -106,6 +130,17 @@ function clearSelected(): void {
 .close:hover { background: var(--raised); color: var(--text); }
 .field { margin-top: 12px; }
 .field-label { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 500; color: var(--text); }
+.label-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+}
 .swatch-row { display: flex; flex-wrap: wrap; gap: 9px; }
 .swatch {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
