@@ -1,8 +1,9 @@
 /**
  * Chart document store — the single source of truth for the talking chart.
  * Holds the persisted `ChartDoc` (title, grid preset, slots, attribution flag),
- * UI selection state, and debounced localStorage persistence
- * (`talking-chart-doc-v1`). Architecture contract: context bundle line 62.
+ * UI selection state, a session-only undo/redo history, and debounced
+ * localStorage persistence (`talking-chart-doc-v1`). Architecture contract:
+ * context bundle line 62.
  */
 
 import { computed, onScopeDispose, ref, watch } from 'vue'
@@ -214,6 +215,84 @@ export const useChartStore = defineStore('chart', () => {
     }
   }
 
+  // --- History (session-only; never persisted) ---
+
+  const undoStack = ref<ChartDoc[]>([])
+  const redoStack = ref<ChartDoc[]>([])
+  /** Coalescing key of the last committed edit (typing runs collapse to one step). */
+  let lastEditKey: string | null = null
+  let lastEditAt = 0
+
+  const canUndo = computed(() => undoStack.value.length > 0)
+  const canRedo = computed(() => redoStack.value.length > 0)
+
+  /** Structural copy of the doc — snapshots must not alias reactive state. */
+  function cloneDoc(source: ChartDoc): ChartDoc {
+    return {
+      title: source.title,
+      grid: source.grid,
+      slots: source.slots.map((slot) => ({
+        id: slot.id,
+        icon: slot.icon === null ? null : { ...slot.icon },
+        label: slot.label,
+        color: slot.color,
+      })),
+      usesArasaac: source.usesArasaac,
+      updatedAt: source.updatedAt,
+    }
+  }
+
+  /**
+   * Snapshot the doc just before a mutation lands. Consecutive edits that
+   * share a key within the coalesce window (typing a title, typing a card
+   * label, tinting one card) collapse into a single undo step; discrete
+   * acts — placements, clears, grid switches, resets — each get their own.
+   */
+  const COALESCE_MS = 600
+  const HISTORY_LIMIT = 50
+
+  function commit(editKey: string | null = null): void {
+    const now = Date.now()
+    const coalesce = editKey !== null && editKey === lastEditKey && now - lastEditAt < COALESCE_MS
+    lastEditKey = editKey
+    lastEditAt = now
+    if (coalesce) return
+    undoStack.value.push(cloneDoc(doc.value))
+    if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
+    redoStack.value = []
+  }
+
+  /** Drop selection/asking state that a restored snapshot invalidates. */
+  function reconcileSelection(): void {
+    if (selectedSlotId.value !== null && findSlot(selectedSlotId.value) === undefined) {
+      selectedSlotId.value = null
+    }
+    if (askingSlotId.value !== null) {
+      const slot = findSlot(askingSlotId.value)
+      if (slot === undefined || slot.icon !== null) askingSlotId.value = null
+    }
+  }
+
+  function undo(): void {
+    const previous = undoStack.value.pop()
+    if (previous === undefined) return
+    redoStack.value.push(cloneDoc(doc.value))
+    doc.value = previous
+    lastEditKey = null
+    reconcileSelection()
+    touch()
+  }
+
+  function redo(): void {
+    const next = redoStack.value.pop()
+    if (next === undefined) return
+    undoStack.value.push(cloneDoc(doc.value))
+    doc.value = next
+    lastEditKey = null
+    reconcileSelection()
+    touch()
+  }
+
   // --- Actions ---
 
   function findSlot(slotId: string): SlotData | undefined {
@@ -221,6 +300,7 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function setTitle(title: string): void {
+    commit('title')
     doc.value.title = title
     touch()
   }
@@ -228,6 +308,7 @@ export const useChartStore = defineStore('chart', () => {
   /** Switch preset, preserving placed content positionally; trim/pad the rest. */
   function setGrid(preset: GridPreset): void {
     if (doc.value.grid === preset) return
+    commit()
     doc.value.slots = fitSlots(doc.value.slots, gridSlotCount(preset))
     doc.value.grid = preset
     // Selection is meaningless if its slot was trimmed away.
@@ -240,6 +321,7 @@ export const useChartStore = defineStore('chart', () => {
   function setSlotIcon(slotId: string, icon: IconRef): void {
     const slot = findSlot(slotId)
     if (slot === undefined) return
+    commit()
     // Copy the ref so callers can't mutate persisted state through their object.
     slot.icon = { source: icon.source, set: icon.set, name: icon.name }
     touch()
@@ -248,6 +330,7 @@ export const useChartStore = defineStore('chart', () => {
   function setSlotLabel(slotId: string, label: string): void {
     const slot = findSlot(slotId)
     if (slot === undefined) return
+    commit(`label:${slotId}`)
     slot.label = label
     touch()
   }
@@ -255,6 +338,7 @@ export const useChartStore = defineStore('chart', () => {
   function setSlotColor(slotId: string, color: string | null): void {
     const slot = findSlot(slotId)
     if (slot === undefined) return
+    commit(`color:${slotId}`)
     slot.color = color
     touch()
   }
@@ -262,6 +346,7 @@ export const useChartStore = defineStore('chart', () => {
   function clearSlot(slotId: string): void {
     const slot = findSlot(slotId)
     if (slot === undefined) return
+    commit()
     slot.icon = null
     slot.label = ''
     slot.color = null
@@ -309,6 +394,7 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function reset(): void {
+    commit()
     doc.value = createDoc()
     selectedSlotId.value = null
     askingSlotId.value = null
@@ -349,6 +435,8 @@ export const useChartStore = defineStore('chart', () => {
     selectedSlot,
     askingSlot,
     placedCount,
+    canUndo,
+    canRedo,
     // actions
     setTitle,
     setGrid,
@@ -360,5 +448,7 @@ export const useChartStore = defineStore('chart', () => {
     askSlot,
     askNextAfter,
     reset,
+    undo,
+    redo,
   }
 })
