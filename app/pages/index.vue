@@ -3,10 +3,12 @@
  * Landing — "Mint poster", the locked one-screen design.
  *
  * A small open-source tool gets a small page: what it is, what it looks
- * like, one button, licences. The only poster moment after the hero is
- * the dark band — the three verbs and a sliding carousel of the product's
- * own pictogram cards (OpenMoji + ARASAAC, the two sets therapists ask
- * for by name).
+ * like, one button, licences. The hero owns the first viewport — it flexes
+ * to fill the space under the header and centres its content, so the
+ * headline breathes at every screen height. The only poster moment after
+ * the hero is the dark band — the three verbs and a sliding carousel of
+ * the product's own pictogram cards (OpenMoji + ARASAAC, the two sets
+ * therapists ask for by name).
  *
  * Anton appears exactly twice (wordmark + hero line); everything else is
  * Work Sans. Motion: rise entrances + the carousel; all off under
@@ -186,14 +188,21 @@ a { color: inherit; }
 .btn.mint { background: var(--mint); color: var(--ink); font-size: 15px; padding: 14px 26px; }
 .btn.mint:hover { opacity: 1; background: #96f28a; }
 
-/* ---------------- hero (centred, compact) ---------------- */
-.hero { text-align: center; padding: 56px 0 72px; }
+/* ---------------- hero (centred, owns the first viewport) ---------------- */
+.hero {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  padding-block: 48px 96px;
+}
 .hero h1 {
   margin: 0 auto;
   max-width: 14ch;
   font-family: var(--font-display);
   font-weight: 400; text-transform: uppercase;
-  font-size: clamp(48px, 7vw, 100px);
+  font-size: clamp(52px, 8.4vw, 120px);
   line-height: 0.94;
 }
 .hero h1 .hl {
@@ -207,13 +216,13 @@ a { color: inherit; }
   margin: -0.04em -0.12em;
 }
 .sub {
-  margin: 28px auto 0;
+  margin: 32px auto 0;
   max-width: 52ch;
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.6;
   color: #1a1a1a;
 }
-.cta-row { display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 36px; }
+.cta-row { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 40px; }
 .fact { font-size: 16px; color: var(--muted); }
 
 /* ---------------- dark banner: verbs + carousel ---------------- */

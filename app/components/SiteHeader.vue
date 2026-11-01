@@ -20,11 +20,14 @@ const logoSrc = `${config.app.baseURL}logo.svg`
 </template>
 
 <style scoped>
-.top { display: flex; align-items: center; justify-content: space-between; padding-block: 32px; }
+/* header.top: element+class specificity so the landing's `.wrap` padding
+   shorthand (same element, later in the cascade) can't zero the vertical
+   rhythm — this was the cramped top-of-page bug. */
+header.top { display: flex; align-items: center; justify-content: space-between; padding-block: 40px; }
 .wrap { width: 100%; max-width: 900px; margin: 0 auto; padding: 0 28px; }
 @media (max-width: 720px) {
   .wrap { padding: 0 20px; }
-  .top { padding-block: 24px; }
+  header.top { padding-block: 24px; }
 }
 .logo-link {
   display: inline-flex; align-items: center;
