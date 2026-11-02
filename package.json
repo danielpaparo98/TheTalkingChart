@@ -10,7 +10,8 @@
     "preview": "nuxt preview",
     "typecheck": "nuxi typecheck",
     "postinstall": "nuxt prepare && node scripts/build-icon-data.mjs && node scripts/vendor-runtime-deps.mjs",
-    "icons": "node scripts/build-icon-data.mjs --force"
+    "icons": "node scripts/build-icon-data.mjs --force",
+    "test": "vitest run"
   },
   "dependencies": {
     "@iconify/vue": "^4.1.2",
@@ -28,6 +29,7 @@
     "@iconify-json/tabler": "^1.2.0",
     "@nuxtjs/tailwindcss": "^7.0.0-beta.1",
     "typescript": "^5.7.3",
+    "vitest": "^5.0.5",
     "vue-tsc": "3.3.7"
   },
   "trustedDependencies": [
