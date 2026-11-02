@@ -125,6 +125,19 @@
   --pill-neutral-bg: #e2efdc;
   --pill-neutral-fg: #3a423a;
 
+  /* Poster Desk (builder v2) — design_iterations/theme-boards-v2.html.
+   * The builder components reference these and never define them locally:
+   * the dark band is the canvas surround only, the desk is the light work
+   * ground, and `--line` is the v2 hairline (landing keeps `--border`).
+   * Radii: controls 8 · tiles 8 · cards 10 · sheet 14.
+   */
+  --band: #0e120d;
+  --desk: #f4f8f2;
+  --line: #e2e8dc;
+  --r-ctl: 8px;
+  --r-card: 10px;
+  --r-sheet: 14px;
+
   /* Shape + density */
   --radius-card: 14px;
   --radius-control: 6px;
@@ -169,73 +182,82 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Print — the sheet is the page (context line 43; owned by chart-app-v2-09).
- * Only [data-chart-sheet] prints, at true A4 landscape: page margin 0, all
- * chrome hidden, exact colors. The geometry overrides must beat the sheet's
- * scoped screen rules (class + scope attribute = higher specificity), hence
- * !important on the pinned page-box properties only.
+ * Print — the sheet is the page (approved decision 4; builder v2 contract).
+ *
+ * The @page size rule is NOT declared here: usePageSetup keeps ONE managed
+ * <style id="page-size-rule"> tag whose `@page { size: …; margin: 0 }` rule
+ * is rebuilt from the doc's page setup on every change (custom properties
+ * don't work inside @page, and no paper preset may ever be hardcoded in
+ * CSS). Printed margins also come from the doc settings — the sheet applies
+ * its own padding (PrintPage's `--margin-mm`), never a stylesheet bypass.
+ *
+ * Screen chrome stays out of the printout with the v1 reveal pattern: every
+ * box is hidden, then the [data-print-page] subtree is revealed. That is the
+ * only mechanism that survives the v2 shell's layered structure — a zoomable,
+ * absolutely-positioned desk stage carrying the sheet, fixed-position
+ * drawers/sheet, and dialog teleports — because it needs no knowledge of any
+ * individual chrome component. The sheet itself is pinned to the page box
+ * the injected @page rule creates, so every preset/orientation prints true.
  * ------------------------------------------------------------------------- */
-.print-only {
-  display: none;
-}
-
 @media print {
-  .print-only {
-    display: block;
-  }
-
-  /* One edge-to-edge A4 landscape page. */
-  @page {
-    size: A4 landscape;
-    margin: 0;
-  }
-
   html,
   body {
-    margin: 0;
-    background-color: #fff;
-    /* The hidden chrome keeps its layout box; clip it so it cannot spill
+    margin: 0 !important;
+    background-color: #fff !important;
+    /* The hidden chrome keeps its layout box — clip it so it cannot spill
        onto a blank second page. The sheet is unaffected: fixed elements are
        clipped by no ancestor overflow. */
-    height: 100%;
-    overflow: hidden;
+    height: 100% !important;
+    overflow: hidden !important;
   }
 
-  /* Hide every chrome box, then reveal only the sheet subtree. */
+  /* Hide every chrome box, then reveal only the print page subtree. */
   body * {
     visibility: hidden;
   }
 
-  [data-chart-sheet],
-  [data-chart-sheet] * {
+  [data-print-page],
+  [data-print-page] * {
     visibility: visible;
   }
 
-  /* Printable-area guide — lives outside the sheet root; never printed. */
-  .print-guide {
-    display: none;
-  }
-
-  [data-chart-sheet] {
-    /* Pin the sheet to the physical page box in mm instead of aspect-ratio
-       (Chrome ignores aspect-ratio on fixed-mm print pages). */
+  /* Pin the sheet to the true page box — whatever paper the injected @page
+     rule carries (A4/Letter/A5/A3 × portrait/landscape), never a fixed mm
+     pair, and always edge-to-edge at margin 0. */
+  [data-print-page] {
     position: fixed !important;
     inset: 0 !important;
-    width: 297mm !important;
-    height: 210mm !important;
-    border: none !important;
-    border-radius: 0 !important;
-    /* Screen padding is a percentage of sheet width; print uses the true
-       10mm margin. The (hidden) guide inherits the same var. */
-    --sheet-pad: 10mm;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    aspect-ratio: auto !important;
   }
 
-  /* Pastel card fills and ink survive — no browser print economizing. */
-  [data-chart-sheet] *,
-  [data-chart-sheet] *::before,
-  [data-chart-sheet] *::after {
+  /* The desk zoom sits INLINE on the stage (transform: translate scale) and
+     its will-change makes that element a containing block for the fixed
+     sheet — both must be neutralised or the printout would be the zoomed
+     desk box, not the page. (.stage exists only in PrintCanvas — verified.) */
+  .stage {
+    position: static !important;
+    transform: none !important;
+    will-change: auto !important;
+  }
+
+  /* Screen-only affordances (margin guide, pulse rings, ask hints, the
+     first-run empty state) never print — one hook covers every component. */
+  [data-screen-only] {
+    display: none !important;
+  }
+
+  /* Empty cards hold their 1fr tracks (filled cards keep their positions)
+     but print nothing of the dashed mint ask state. */
+  [data-print-page] .cell.is-empty {
+    visibility: hidden;
+  }
+
+  /* Pastel tints, the mint keyword block and card colours survive — no
+     browser print economising anywhere inside the sheets. */
+  [data-print-page],
+  [data-print-page] *,
+  [data-print-page] *::before,
+  [data-print-page] *::after {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
