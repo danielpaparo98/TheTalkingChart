@@ -208,6 +208,10 @@ onBeforeUnmount(() => {
   --canvas-chip: rgba(255, 255, 255, .07);
   --canvas-line: rgba(255, 255, 255, .12);
 
+  /* Claim the shell region's definite flex height — everything inside is
+     absolutely positioned, so without this the component collapses to 0px,
+     ResizeObserver measures 0 and the sheet park at the 10% fit floor. */
+  height: 100%;
   position: relative;
   overflow: hidden; /* the desk never scrolls the page or lets the sheet escape */
   background: var(--band);
