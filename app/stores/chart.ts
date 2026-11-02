@@ -1,173 +1,88 @@
 /**
- * Chart document store — the single source of truth for the talking chart.
- * Holds the persisted `ChartDoc` (title, grid preset, slots, attribution flag),
- * UI selection state, a session-only undo/redo history, and debounced
- * localStorage persistence (`talking-chart-doc-v1`). Architecture contract:
- * context bundle line 62.
+ * Chart document store v2 — the single source of truth for the builder.
+ *
+ * Holds the persisted `ChartDoc` (page setup, grid geometry, position-indexed
+ * cells), UI-only selection state, a session-only 50-deep undo/redo history
+ * with 600ms key-based coalescing, and debounced localStorage persistence
+ * under `talking-chart-doc-v2`. Clean break from v1: the old key is never
+ * read and never migrated — v1 charts intentionally start fresh.
+ *
+ * Architecture:
+ * - Every document mutation flows through `mutate()`: a pure reducer from
+ *   `utils/doc-reducers` produces the next doc; its no-op identity contract
+ *   (same reference back) short-circuits empty history entries and stamps.
+ * - `touch()` stamps `updatedAt`, recomputes `usesArasaac` and flips the
+ *   dirty/saved flags — attribution never outlives the pictograms it credits.
+ * - Persistence writes are debounced (300ms) with a `pagehide` flush, and
+ *   rehydration validates the untrusted payload shape (`toChartDoc`) before
+ *   it is allowed anywhere near state.
  */
 
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import type { ChartDoc, GridPreset, SlotData } from '../types/chart'
-import type { IconRef } from '../types/icons'
-
-/** localStorage key — the persistence single source (contract line 62). */
-const STORAGE_KEY = 'talking-chart-doc-v1'
+import { DOC_STORAGE_KEY_V2 } from '../types/chart'
+import type { CellData, ChartDoc, LabelSize, PageSetup } from '../types/chart'
+import { createBlankChart } from '../utils/templates'
+import * as reducers from '../utils/doc-reducers'
 
 /** Debounce window so per-keystroke edits don't hammer storage. */
 const PERSIST_DELAY_MS = 300
 
-const DEFAULT_TITLE = 'My talking chart'
-const DEFAULT_GRID: GridPreset = '4x5'
+/** Coalescing window: same-key edits within it collapse into one undo step. */
+const COALESCE_MS = 600
 
-/** Column/row geometry per preset ('CxR'); drives slot count and the CSS grid layout. */
-const GRID_GEOMETRY: Record<GridPreset, { columns: number; rows: number }> = {
-  '2x2': { columns: 2, rows: 2 },
-  '3x3': { columns: 3, rows: 3 },
-  '4x5': { columns: 4, rows: 5 },
-  '5x4': { columns: 5, rows: 4 },
-}
-
-function gridSlotCount(preset: GridPreset): number {
-  const { columns, rows } = GRID_GEOMETRY[preset]
-  return columns * rows
-}
-
-/** Monotonic fallback counter for runtimes without `crypto.randomUUID`. */
-let slotCounter = 0
-
-function createSlotId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  slotCounter += 1
-  return `slot-${Date.now().toString(36)}-${slotCounter}`
-}
-
-function createEmptySlot(): SlotData {
-  return { id: createSlotId(), icon: null, label: '', color: null }
-}
-
-function createSlots(count: number): SlotData[] {
-  return Array.from({ length: count }, () => createEmptySlot())
-}
-
-function createDoc(): ChartDoc {
-  return {
-    title: DEFAULT_TITLE,
-    grid: DEFAULT_GRID,
-    slots: createSlots(gridSlotCount(DEFAULT_GRID)),
-    usesArasaac: false,
-    updatedAt: Date.now(),
-  }
-}
-
-/**
- * Reconcile slot count with a preset: existing content is kept positionally,
- * overflow is trimmed, missing slots are filled fresh empties.
- */
-function fitSlots(slots: SlotData[], count: number): SlotData[] {
-  if (slots.length === count) return slots
-  if (slots.length > count) return slots.slice(0, count)
-  return [...slots, ...createSlots(count - slots.length)]
-}
-
-// --- Defensive restore helpers (localStorage content is untrusted) ---
-
-function isGridPreset(value: string): value is GridPreset {
-  return Object.prototype.hasOwnProperty.call(GRID_GEOMETRY, value)
-}
-
-function toIconRef(value: unknown): IconRef | null {
-  if (typeof value !== 'object' || value === null) return null
-  const candidate = value as Partial<IconRef>
-  if (candidate.source !== 'bundle' && candidate.source !== 'arasaac') return null
-  if (typeof candidate.set !== 'string' || candidate.set === '') return null
-  if (typeof candidate.name !== 'string' || candidate.name === '') return null
-  return { source: candidate.source, set: candidate.set, name: candidate.name }
-}
-
-function toSlotData(value: unknown): SlotData | null {
-  if (typeof value !== 'object' || value === null) return null
-  const candidate = value as Partial<SlotData>
-  if (typeof candidate.id !== 'string' || candidate.id === '') return null
-  return {
-    id: candidate.id,
-    icon: toIconRef(candidate.icon),
-    label: typeof candidate.label === 'string' ? candidate.label : '',
-    color: typeof candidate.color === 'string' ? candidate.color : null,
-  }
-}
-
-/** Validate a parsed payload; `null` means corrupt — caller starts fresh. */
-function toChartDoc(value: unknown): ChartDoc | null {
-  if (typeof value !== 'object' || value === null) return null
-  const candidate = value as Partial<ChartDoc>
-  if (typeof candidate.title !== 'string') return null
-  if (typeof candidate.updatedAt !== 'number' || !Number.isFinite(candidate.updatedAt)) return null
-  const grid = typeof candidate.grid === 'string' && isGridPreset(candidate.grid) ? candidate.grid : DEFAULT_GRID
-  const rawSlots: unknown[] = Array.isArray(candidate.slots) ? candidate.slots : []
-  const slots = fitSlots(
-    rawSlots.map(toSlotData).filter((slot): slot is SlotData => slot !== null),
-    gridSlotCount(grid),
-  )
-  return {
-    title: candidate.title,
-    grid,
-    slots,
-    // Recompute from the restored slots — never trust the stored flag.
-    usesArasaac: slots.some((slot) => slot.icon?.source === 'arasaac'),
-    updatedAt: candidate.updatedAt,
-  }
-}
+/** Maximum undo steps kept (session-only; never persisted). */
+const HISTORY_LIMIT = 50
 
 export const useChartStore = defineStore('chart', () => {
   // --- State ---
-  const doc = ref<ChartDoc>(createDoc())
-  /** UI-only selection; intentionally not part of ChartDoc (never persisted). */
-  const selectedSlotId = ref<string | null>(null)
-  /**
-   * The empty card that is currently "asking" for its word (the grown
-   * word picker). UI-only, never persisted, never set for filled cards.
-   */
-  const askingSlotId = ref<string | null>(null)
+  const doc = ref<ChartDoc>(createBlankChart())
+  /** UI-only selection (index into `cells`); intentionally never persisted. */
+  const selectedCellIndex = ref<number | null>(null)
+  /** The empty card currently "asking" for its word (add flow). UI-only. */
+  const askingCellIndex = ref<number | null>(null)
   const dirty = ref(false)
   const saved = ref(false)
-  /** True when localStorage refused a write (blocked/full) — surfaced in the top bar. */
+  /** True when localStorage refused a read/write — surfaced in the top bar. */
   const storageError = ref(false)
 
   let persistTimer: ReturnType<typeof setTimeout> | null = null
 
+  // --- History (session-only; never persisted) ---
+  const undoStack = ref<ChartDoc[]>([])
+  const redoStack = ref<ChartDoc[]>([])
+  /** Coalescing key of the last committed edit (typing streams collapse). */
+  let lastEditKey: string | null = null
+  let lastEditAt = 0
+
   // --- Derived ---
-  const columns = computed(() => GRID_GEOMETRY[doc.value.grid].columns)
-  const rows = computed(() => GRID_GEOMETRY[doc.value.grid].rows)
-  const gridSize = computed(() => doc.value.slots.length)
-  const selectedSlot = computed<SlotData | null>(() => {
-    if (selectedSlotId.value === null) return null
-    return doc.value.slots.find((slot) => slot.id === selectedSlotId.value) ?? null
-  })
-  /** Asking card (empty slot with its word picker open), or null. */
-  const askingSlot = computed<SlotData | null>(() => {
-    if (askingSlotId.value === null) return null
-    return doc.value.slots.find((slot) => slot.id === askingSlotId.value) ?? null
-  })
-  /** How many cards hold a picture — drives the top-bar progress. */
-  const placedCount = computed(
-    () => doc.value.slots.filter((slot) => slot.icon !== null).length,
-  )
+  const gridSize = computed(() => doc.value.grid.rows * doc.value.grid.cols)
+  const rows = computed(() => doc.value.grid.rows)
+  const columns = computed(() => doc.value.grid.cols)
+  /** How many cards hold content (icon, label or upload) — drives progress. */
+  const placedCount = computed(() => doc.value.cells.filter((cell) => !reducers.isCellEmpty(cell)).length)
+  const selectedCell = computed<CellData | null>(() => cellAt(selectedCellIndex.value))
+  const askingCell = computed<CellData | null>(() => cellAt(askingCellIndex.value))
+  const canUndo = computed(() => undoStack.value.length > 0)
+  const canRedo = computed(() => redoStack.value.length > 0)
+
+  function cellAt(index: number | null): CellData | null {
+    if (index === null) return null
+    return doc.value.cells[index] ?? null
+  }
 
   // --- Persistence ---
 
   function persistNow(): void {
     persistTimer = null
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(doc.value))
+      window.localStorage.setItem(DOC_STORAGE_KEY_V2, JSON.stringify(doc.value))
       dirty.value = false
       saved.value = true
       storageError.value = false
     } catch {
-      // Storage blocked/full — stay dirty and say so (WCAG 4.1.3: the
-      // failure must be announced, not silent work loss).
+      // Storage blocked/full — stay dirty and say so (WCAG 4.1.3: the failure
+      // must be announced, not silent work loss).
       storageError.value = true
     }
   }
@@ -185,105 +100,103 @@ export const useChartStore = defineStore('chart', () => {
     persistTimer = setTimeout(persistNow, PERSIST_DELAY_MS)
   }
 
-  /**
-   * Stamp every document mutation. `usesArasaac` is recomputed so it always
-   * reflects reality (true iff any placed icon is arasaac-sourced) — the
-   * attribution notice must not outlive the pictograms it credits.
-   */
-  function touch(): void {
-    doc.value.updatedAt = Date.now()
-    doc.value.usesArasaac = doc.value.slots.some((slot) => slot.icon?.source === 'arasaac')
-    dirty.value = true
-    saved.value = false
+  /** `null` on any parse/validation failure — corrupt payloads are not storage errors. */
+  function parseStoredDoc(raw: string): ChartDoc | null {
+    try {
+      return reducers.toChartDoc(JSON.parse(raw) as unknown)
+    } catch {
+      return null
+    }
   }
 
   /** Restore from storage on first store access; corrupt payloads start fresh. */
   function restore(): void {
+    let raw: string | null
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (raw === null) {
-        // First run — seed storage so it is the single source from the start.
-        persistNow()
-        return
-      }
-      const restored = toChartDoc(JSON.parse(raw) as unknown)
-      if (restored === null) {
-        // Corrupt payload — overwrite it with a fresh doc.
-        persistNow()
-        return
-      }
-      doc.value = restored
-      dirty.value = false
-      saved.value = true
+      raw = window.localStorage.getItem(DOC_STORAGE_KEY_V2)
     } catch {
       // Storage access denied — keep the fresh default doc and flag it so
       // the top bar can tell the user their work will not persist.
       storageError.value = true
+      return
     }
+    if (raw === null) {
+      // First run — seed storage so it is the single source from the start.
+      persistNow()
+      return
+    }
+    const restored = parseStoredDoc(raw)
+    if (restored === null) {
+      // Corrupt or non-v2 payload — overwrite it with a fresh doc.
+      persistNow()
+      return
+    }
+    doc.value = restored
+    dirty.value = false
+    saved.value = true
   }
 
-  // --- History (session-only; never persisted) ---
+  // --- Mutation pipeline ---
 
-  const undoStack = ref<ChartDoc[]>([])
-  const redoStack = ref<ChartDoc[]>([])
-  /** Coalescing key of the last committed edit (typing runs collapse to one step). */
-  let lastEditKey: string | null = null
-  let lastEditAt = 0
-
-  const canUndo = computed(() => undoStack.value.length > 0)
-  const canRedo = computed(() => redoStack.value.length > 0)
-
-  /** Structural copy of the doc — snapshots must not alias reactive state. */
-  function cloneDoc(source: ChartDoc): ChartDoc {
-    return {
-      title: source.title,
-      grid: source.grid,
-      slots: source.slots.map((slot) => ({
-        id: slot.id,
-        icon: slot.icon === null ? null : { ...slot.icon },
-        label: slot.label,
-        color: slot.color,
-      })),
-      usesArasaac: source.usesArasaac,
-      updatedAt: source.updatedAt,
-    }
+  /**
+   * Stamp every document mutation. `usesArasaac` is recomputed so it always
+   * reflects reality (true iff any placed icon is arasaac-sourced).
+   */
+  function touch(): void {
+    doc.value.updatedAt = Date.now()
+    doc.value.usesArasaac = doc.value.cells.some((cell) => cell.icon?.source === 'arasaac')
+    dirty.value = true
+    saved.value = false
   }
 
   /**
    * Snapshot the doc just before a mutation lands. Consecutive edits that
-   * share a key within the coalesce window (typing a title, typing a card
-   * label, tinting one card) collapse into a single undo step; discrete
-   * acts — placements, clears, grid switches, resets — each get their own.
+   * share a key within the coalesce window (typing a title, typing one
+   * card's label, tinting one card, dragging the gap slider) collapse into a
+   * single undo step; discrete acts — placements, clears, swaps, grid
+   * resizes, template loads — each get their own.
    */
-  const COALESCE_MS = 600
-  const HISTORY_LIMIT = 50
-
   function commit(editKey: string | null = null): void {
     const now = Date.now()
     const coalesce = editKey !== null && editKey === lastEditKey && now - lastEditAt < COALESCE_MS
     lastEditKey = editKey
     lastEditAt = now
     if (coalesce) return
-    undoStack.value.push(cloneDoc(doc.value))
+    undoStack.value.push(reducers.cloneDoc(doc.value))
     if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
     redoStack.value = []
   }
 
-  /** Drop selection/asking state that a restored snapshot invalidates. */
+  /** Drop selection/asking state that a mutation or restore invalidates. */
   function reconcileSelection(): void {
-    if (selectedSlotId.value !== null && findSlot(selectedSlotId.value) === undefined) {
-      selectedSlotId.value = null
+    const count = doc.value.cells.length
+    if (selectedCellIndex.value !== null && (selectedCellIndex.value < 0 || selectedCellIndex.value >= count)) {
+      selectedCellIndex.value = null
     }
-    if (askingSlotId.value !== null) {
-      const slot = findSlot(askingSlotId.value)
-      if (slot === undefined || slot.icon !== null) askingSlotId.value = null
+    if (askingCellIndex.value !== null) {
+      const cell = doc.value.cells[askingCellIndex.value]
+      if (cell === undefined || !reducers.isCellEmpty(cell)) askingCellIndex.value = null
     }
+  }
+
+  /**
+   * THE single mutation path: apply a pure reducer, snapshot history, stamp,
+   * reconcile selection. The reducer's no-op identity contract means invalid
+   * indices / unchanged values never enter history or trigger persistence.
+   */
+  function mutate(editKey: string | null, reduce: (current: ChartDoc) => ChartDoc): void {
+    const next = reduce(doc.value)
+    if (next === doc.value) return
+    commit(editKey)
+    doc.value = next
+    touch()
+    reconcileSelection()
   }
 
   function undo(): void {
     const previous = undoStack.value.pop()
     if (previous === undefined) return
-    redoStack.value.push(cloneDoc(doc.value))
+    redoStack.value.push(reducers.cloneDoc(doc.value))
     doc.value = previous
     lastEditKey = null
     reconcileSelection()
@@ -293,120 +206,113 @@ export const useChartStore = defineStore('chart', () => {
   function redo(): void {
     const next = redoStack.value.pop()
     if (next === undefined) return
-    undoStack.value.push(cloneDoc(doc.value))
+    undoStack.value.push(reducers.cloneDoc(doc.value))
     doc.value = next
     lastEditKey = null
     reconcileSelection()
     touch()
   }
 
-  // --- Actions ---
+  // --- Actions (all doc mutations funnel through `mutate`) ---
 
-  function findSlot(slotId: string): SlotData | undefined {
-    return doc.value.slots.find((slot) => slot.id === slotId)
+  /** Stable per-cell coalescing key (like v1's per-slot keys) — null when the cell doesn't exist. */
+  function cellEditKey(kind: string, index: number): string | null {
+    const id = doc.value.cells[index]?.id
+    return id === undefined ? null : `${kind}:${id}`
   }
 
   function setTitle(title: string): void {
-    commit('title')
-    doc.value.title = title
-    touch()
+    mutate('title', (current) => reducers.setTitle(current, title))
   }
 
-  /** Switch preset, preserving placed content positionally; trim/pad the rest. */
-  function setGrid(preset: GridPreset): void {
-    if (doc.value.grid === preset) return
-    commit()
-    doc.value.slots = fitSlots(doc.value.slots, gridSlotCount(preset))
-    doc.value.grid = preset
-    // Selection is meaningless if its slot was trimmed away.
-    if (selectedSlotId.value !== null && findSlot(selectedSlotId.value) === undefined) {
-      selectedSlotId.value = null
-    }
-    touch()
+  /** Replace a cell wholesale — placement and upload results land here. */
+  function setCell(index: number, cell: CellData): void {
+    mutate(null, (current) => reducers.setCell(current, index, cell))
   }
 
-  function setSlotIcon(slotId: string, icon: IconRef): void {
-    const slot = findSlot(slotId)
-    if (slot === undefined) return
-    commit()
-    // Copy the ref so callers can't mutate persisted state through their object.
-    slot.icon = { source: icon.source, set: icon.set, name: icon.name }
-    touch()
+  function setLabel(index: number, label: string): void {
+    mutate(cellEditKey('label', index), (current) => reducers.setLabel(current, index, label))
   }
 
-  function setSlotLabel(slotId: string, label: string): void {
-    const slot = findSlot(slotId)
-    if (slot === undefined) return
-    commit(`label:${slotId}`)
-    slot.label = label
-    touch()
+  function setCellColor(index: number, color: string | null): void {
+    mutate(cellEditKey('color', index), (current) => reducers.setTint(current, index, color))
   }
 
-  function setSlotColor(slotId: string, color: string | null): void {
-    const slot = findSlot(slotId)
-    if (slot === undefined) return
-    commit(`color:${slotId}`)
-    slot.color = color
-    touch()
+  function setTextOnly(index: number, on?: boolean): void {
+    mutate(cellEditKey('textonly', index), (current) => reducers.toggleTextOnly(current, index, on))
   }
 
-  function clearSlot(slotId: string): void {
-    const slot = findSlot(slotId)
-    if (slot === undefined) return
-    commit()
-    slot.icon = null
-    slot.label = ''
-    slot.color = null
-    if (askingSlotId.value === slotId) askingSlotId.value = null
-    touch()
+  function clearCell(index: number): void {
+    mutate(null, (current) => reducers.clearCell(current, index))
   }
 
-  /** UI-only; never stamps updatedAt/dirty — selection is not document state. */
-  function selectSlot(slotId: string | null): void {
-    if (slotId !== null && findSlot(slotId) === undefined) return
-    selectedSlotId.value = slotId
+  function duplicateCell(index: number): void {
+    mutate(null, (current) => reducers.duplicateCell(current, index))
+  }
+
+  function swapCells(a: number, b: number): void {
+    mutate(null, (current) => reducers.swapCells(current, a, b))
+  }
+
+  function applyTemplate(template: ChartDoc): void {
+    mutate(null, (current) => reducers.applyTemplate(current, template))
+    // A template's geometry is unrelated to prior selection — start clean.
+    selectedCellIndex.value = null
+    askingCellIndex.value = null
+  }
+
+  function setPageSetup(patch: Partial<PageSetup>): void {
+    mutate('pageSetup', (current) => reducers.setPageSetup(current, patch))
+  }
+
+  function setGrid(nextRows: number, nextCols: number): void {
+    mutate(null, (current) => reducers.setGrid(current, nextRows, nextCols))
+  }
+
+  function setGap(gap: number): void {
+    // Slider drags fire continuously — one logical act, one undo step.
+    mutate('gap', (current) => reducers.setGap(current, gap))
+  }
+
+  function setLabelSize(labelSize: LabelSize): void {
+    mutate('labelSize', (current) => reducers.setLabelSize(current, labelSize))
+  }
+
+  // --- Selection (UI-only; never stamps updatedAt/dirty) ---
+
+  function selectCell(index: number | null): void {
+    if (index !== null && (index < 0 || index >= doc.value.cells.length)) return
+    selectedCellIndex.value = index
   }
 
   /**
-   * Open (or close) the word picker on an empty card. Only truly empty,
-   * existing slots may ask; asking also clears the filled-card selection —
+   * Open (or close) the add flow on an empty card. Only truly empty,
+   * existing cells may ask; asking also clears the filled-card selection —
    * the two edit surfaces never open at once.
    */
-  function askSlot(slotId: string | null): void {
-    if (slotId === null) {
-      askingSlotId.value = null
+  function askCell(index: number | null): void {
+    if (index === null) {
+      askingCellIndex.value = null
       return
     }
-    const slot = findSlot(slotId)
-    if (slot === undefined || slot.icon !== null) return
-    selectedSlotId.value = null
-    askingSlotId.value = slotId
+    const cell = doc.value.cells[index]
+    if (cell === undefined || !reducers.isCellEmpty(cell)) return
+    selectedCellIndex.value = null
+    askingCellIndex.value = index
   }
 
   /**
    * Auto-advance: after placing into a card, the next empty card asks.
-   * Returns the id it advanced to (null when the chart is complete).
+   * Returns the index it advanced to (null when the chart is complete).
    */
-  function askNextAfter(slotId: string): string | null {
-    const index = doc.value.slots.findIndex((slot) => slot.id === slotId)
-    for (let step = 1; step <= doc.value.slots.length; step += 1) {
-      const slot = doc.value.slots[(index + step) % doc.value.slots.length]
-      if (slot !== undefined && slot.icon === null) {
-        askingSlotId.value = slot.id
-        return slot.id
-      }
+  function askNextAfter(index: number): number | null {
+    const next = reducers.nextEmptyCellIndex(doc.value, index)
+    if (next === null) {
+      askingCellIndex.value = null
+      return null
     }
-    askingSlotId.value = null
-    return null
-  }
-
-  function reset(): void {
-    commit()
-    doc.value = createDoc()
-    selectedSlotId.value = null
-    askingSlotId.value = null
-    dirty.value = true
-    saved.value = false
+    askingCellIndex.value = next
+    return next
   }
 
   // --- Wiring (registered after restore so restoring never triggers a re-save) ---
@@ -431,31 +337,37 @@ export const useChartStore = defineStore('chart', () => {
   return {
     // state
     doc,
-    selectedSlotId,
-    askingSlotId,
+    selectedCellIndex,
+    askingCellIndex,
     dirty,
     saved,
     storageError,
     // derived
-    columns,
-    rows,
     gridSize,
-    selectedSlot,
-    askingSlot,
+    rows,
+    columns,
     placedCount,
+    selectedCell,
+    askingCell,
     canUndo,
     canRedo,
     // actions
     setTitle,
+    setCell,
+    setLabel,
+    setCellColor,
+    setTextOnly,
+    clearCell,
+    duplicateCell,
+    swapCells,
+    applyTemplate,
+    setPageSetup,
     setGrid,
-    setSlotIcon,
-    setSlotLabel,
-    setSlotColor,
-    clearSlot,
-    selectSlot,
-    askSlot,
+    setGap,
+    setLabelSize,
+    selectCell,
+    askCell,
     askNextAfter,
-    reset,
     undo,
     redo,
   }

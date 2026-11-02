@@ -1,25 +1,61 @@
 <script setup lang="ts">
 /**
- * index.vue — the builder. Card-first: the sheet leads, and the primary
- * flow is "tap a card, type what it should say". The library docks beside
- * the sheet on desktop (≥1080px — browse while you place) and is a drawer
- * below that; the compact editor anchors to a selected filled card; the
- * word picker sprouts from the asking empty card and auto-advances as the
- * chart fills.
+ * The builder v2 — thin composition root (subtask 15). This file owns
+ * NOTHING visual: it mounts the landed builder contracts into BuilderShell's
+ * four regions, wires every emitted event to the store/routing, and hosts
+ * the page-level behaviour that no landed component may own:
  *
- * Layout: desk ground → 52px top bar → workspace row (library dock | the
- * well with the A4 sheet resting on it). Print contract: [data-chart-sheet]
- * + the print stylesheet.
+ *  - the global keyboard layer — Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and
+ *    Ctrl+Y redo (skipped while typing in fields), and the Escape unwind
+ *    export → templates → inspector sheet → library drawer → deselect;
+ *  - the `builder-cell-place` hand-off: GridCell validates a library drop
+ *    and dispatches the bubbling CustomEvent `LIBRARY_PLACE_EVENT` with
+ *    detail `{ index, payload }` (useCellDrag.emitLibraryPlace); the page
+ *    writes the cell and refreshes the library's recents strip through the
+ *    panel's exposed `notePlaced` — keeping PageGrid's frozen 5-event leak.
+ *  - screen-reader live announcements (placements, removals, undo/redo) and
+ *    focus return for the shell's drawers/sheet (v1 indexes/index pattern).
+ *
+ * The `@page` size rule is kept live by `usePageSetup` (managed style tag);
+ * this page activates it here so print/export track the doc state even
+ * before the sheet mounts a second (refcounted) consumer.
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-
-/** The builder names the object, not the brand — bare layout, own chrome. */
 definePageMeta({ layout: 'app' })
 
-/** The builder never set a document title — orientation for tabs, history
- *  and screen readers (WCAG 2.4.2). */
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import BuilderShell from '~/components/builder/BuilderShell.vue'
+import BuilderToolbar from '~/components/builder/BuilderToolbar.vue'
+import LibraryPanel from '~/components/builder/LibraryPanel.vue'
+import PrintCanvas from '~/components/builder/PrintCanvas.vue'
+import PrintPage from '~/components/builder/PrintPage.vue'
+import PageGrid from '~/components/builder/PageGrid.vue'
+import InspectorPanel from '~/components/builder/InspectorPanel.vue'
+import TemplateGallery from '~/components/builder/TemplateGallery.vue'
+import ExportDialog from '~/components/builder/ExportDialog.vue'
+import { useChartStore } from '~/stores/chart'
+import { useCatalogStore } from '~/stores/catalog'
+import { usePageSetup } from '~/composables/usePageSetup'
+import { useExport } from '~/composables/useExport'
+import { LIBRARY_PLACE_EVENT } from '~/composables/useCellDrag'
+import type { LibraryPlaceDetail } from '~/composables/useCellDrag'
+import { libraryDisplayName } from '~/composables/useLibrarySearch'
+import { isCellEmpty, nextEmptyCellIndex } from '~/utils/doc-reducers'
+import { PAGE_PRESETS, formatMm } from '~/utils/page-presets'
+import type { IconRef, IconSetMeta } from '~/types/icons'
+
+const chart = useChartStore()
+const catalog = useCatalogStore()
+
+/**
+ * Document title tracks the chart title (bookmarks/history/tabs announce the
+ * sheet's name; WCAG page-context quality). Reactive getter, defined after
+ * the store exists.
+ */
 useHead({
-  title: 'Chart builder — The Talking Chart',
+  title: () => {
+    const name = chart.doc.title.trim()
+    return name !== '' ? `${name} — The Talking Chart` : 'Chart builder — The Talking Chart'
+  },
   meta: [
     {
       name: 'description',
@@ -29,38 +65,55 @@ useHead({
   ],
 })
 
-import AppTopBar from '~/components/AppTopBar.vue'
-import IconBrowser from '~/components/IconBrowser.vue'
-import ChartSheet from '~/components/ChartSheet.vue'
-import SlotEditor from '~/components/SlotEditor.vue'
-import WordPicker from '~/components/WordPicker.vue'
-import StyleControls from '~/components/StyleControls.vue'
-import ExportDialog from '~/components/ExportDialog.vue'
-import IconDragGhost from '~/components/IconDragGhost.vue'
-import type { LabelSize } from '~/components/StyleControls.vue'
-import { useChartStore } from '~/stores/chart'
-import { useExport } from '~/composables/useExport'
+// --- page-owned UI state (the shell/dialog open states live HERE) ----------
 
-const WIDE_QUERY = '(min-width: 720px)'
-const DESKTOP_QUERY = '(min-width: 1080px)'
-
-const chart = useChartStore()
-const { printChart } = useExport()
-
-// --- page-owned UI state ---
-
+const templatesOpen = ref(false)
 const exportOpen = ref(false)
-const settingsOpen = ref(false)
-const browseOpen = ref(false)
-const helpOpen = ref(false)
-/** First-run hints dismissed by the user; Help brings them back. */
-const hintsDismissed = ref(false)
-const labelSize = ref<LabelSize>('m')
+const libraryOpen = ref(false)
+const inspectorOpen = ref(false)
+
+// --- page geometry + the managed @page rule --------------------------------
+
+const { dimsMm, aspectRatio, marginMm } = usePageSetup({ setup: () => chart.doc.pageSetup })
+
+/** Mockup canvas-status caption, e.g. "A4 · portrait · 210 × 297 mm". */
+const pageLabel = computed(() => {
+  const setup = chart.doc.pageSetup
+  const dims = dimsMm.value
+  return `${PAGE_PRESETS[setup.preset].label} · ${setup.orientation} · ${formatMm(dims.widthMm)} × ${formatMm(dims.heightMm)} mm`
+})
 
 /**
- * Chart-event announcements for screen readers (WCAG 4.1.3): a single
- * polite live region fed by placements, removals, undo and redo.
+ * PrintPage computes its print margins from `--margin-mm` (declared above
+ * --page-w-mm in its sheet geometry); the page publishes it so the sheet's
+ * padding tracks the doc's margin preset.
  */
+const sheetStyleVars = computed<Record<string, string>>(() => ({ '--margin-mm': String(marginMm.value) }))
+
+// --- export/attribution (decision 10: the credit rides the sheet) ----------
+
+function resolveSetMeta(prefix: string): IconSetMeta | null {
+  return catalog.sets.find((meta) => meta.prefix === prefix) ?? null
+}
+
+const { printChart, attribution } = useExport({ doc: () => chart.doc, resolveSetMeta })
+
+/**
+ * Storage failure → the desk's attention line (PrintCanvas `notice`):
+ * role=alert so screen readers announce the failure assertively, and it
+ * stays visible while the user keeps working (store re-clears it on the
+ * first successful write).
+ */
+const storageNote = computed(() =>
+  chart.storageError ? 'Not saved — storage unavailable' : null,
+)
+
+// --- first-run empty state (Anton headline; sanctioned surface #1) ----------
+
+const gridEmpty = computed(() => chart.doc.cells.every((cell) => isCellEmpty(cell)))
+
+// --- screen-reader announcements (WCAG 4.1.3, v1 semantics) ----------------
+
 const announcement = ref('')
 
 function announce(message: string): void {
@@ -71,194 +124,223 @@ function announce(message: string): void {
   })
 }
 
+/** Template applies replace the doc wholesale — the own announcement wins. */
+let omitPlacementAnnounce = false
+
 watch(
   () => chart.placedCount,
   (now, before) => {
+    if (omitPlacementAnnounce) {
+      omitPlacementAnnounce = false
+      return
+    }
     if (now > before) announce(`Picture placed — ${now} of ${chart.gridSize} on the chart`)
     else if (now < before) announce(`Card removed — ${now} of ${chart.gridSize} filled`)
   },
 )
 
-/** Overlay positions, in px within the well. */
-const pickerPos = ref<{ top: number; left: number; sproutX: number } | null>(null)
-const editorPos = ref<{ top: number; left: number } | null>(null)
+// --- toolbar / drawer actions ----------------------------------------------
 
-const builderEl = ref<HTMLElement | null>(null)
-const wellEl = ref<HTMLElement | null>(null)
-
-const isWide = ref(typeof window !== 'undefined' ? window.matchMedia(WIDE_QUERY).matches : true)
-const isDesktop = ref(typeof window !== 'undefined' ? window.matchMedia(DESKTOP_QUERY).matches : false)
-let wideQuery: MediaQueryList | null = null
-let desktopQuery: MediaQueryList | null = null
-
-function syncMedia(): void {
-  if (wideQuery !== null) isWide.value = wideQuery.matches
-  if (desktopQuery !== null) isDesktop.value = desktopQuery.matches
+function onBack(): void {
+  void navigateTo('/')
 }
 
-/** First-run hint strip: visible until the first card is placed. */
-const showHints = computed(() => chart.placedCount === 0)
-/** The strip renders when first-run hints apply, or Help opened them. */
-const hintsVisible = computed(() => (showHints.value && !hintsDismissed.value) || helpOpen.value)
+function toggleLibrary(): void {
+  const next = !libraryOpen.value
+  libraryOpen.value = next
+  // Open = land inside the search (the shell focuses the drawer region).
+  if (next) void nextTick(() => libraryPanel.value?.focusSearch())
+}
+
+function toggleInspector(): void {
+  inspectorOpen.value = !inspectorOpen.value
+}
+
+function openTemplates(): void {
+  templatesOpen.value = true
+}
+
+function openExport(): void {
+  exportOpen.value = true
+}
+
+/** Toolbar's Page button: PAGE mode + keep the sheet reachable below dock. */
+function openPage(): void {
+  chart.askCell(null) // ask/selection are UI-only — no undo entry either way
+  chart.selectCell(null)
+  inspectorOpen.value = true
+}
+
+/** Toolbar history buttons mirror Ctrl/Cmd+Z — same store call, same announce. */
+function onUndo(): void {
+  chart.undo()
+  announce('Undo — last change reversed')
+}
+
+function onRedo(): void {
+  chart.redo()
+  announce('Redo — change reapplied')
+}
+
+function onPrint(): void {
+  printChart()
+}
+
+/** Add flow → full library hand-off: the sheet yields to the drawer. */
+function onInspectorBrowse(): void {
+  inspectorOpen.value = false
+  libraryOpen.value = true
+  void nextTick(() => libraryPanel.value?.focusSearch())
+}
+
+// --- grid events (PageGrid's frozen contract) --------------------------------
+
+function onCellSelect(index: number): void {
+  chart.selectCell(index)
+  inspectorOpen.value = true // below dock: the card editor is the bottom sheet
+}
+
+function onCellAsk(index: number): void {
+  chart.askCell(index)
+  inspectorOpen.value = true
+}
+
+function onCellSwap(from: number, to: number): void {
+  chart.swapCells(from, to)
+}
+
+/** The cell starts its own WYSIWYG editor; the edited card stays selected. */
+function onLabelEdit(index: number): void {
+  chart.selectCell(index)
+}
+
+/** Streamed keystrokes — the store's 600ms coalescing makes one undo step. */
+function onLabelInput(index: number, label: string): void {
+  chart.setLabel(index, label)
+}
+
+// --- library placements (click/keyboard path + the drag hand-off) ----------
+
+/** LibraryPanel's exposed surface (defineExpose) — recents + drawer focus. */
+interface LibraryPanelExpose {
+  focusSearch(): Promise<void>
+  notePlaced(icon: IconRef, label: string): void
+}
+
+const libraryPanel = ref<LibraryPanelExpose | null>(null)
 
 /**
- * On desktop the library docks beside the sheet (both stay visible —
- * browse while you place); below 1080px it is the overlay drawer.
+ * Keyboard/click picks carry only the IconRef (panel's frozen contract);
+ * recover the tile's display label from the live catalog results.
  */
-const dockOpen = computed(() => browseOpen.value && isDesktop.value)
+function labelForIcon(icon: IconRef): string {
+  const entry = catalog.results.find((row) => {
+    const ref = catalog.refFor(row)
+    return ref.source === icon.source && ref.set === icon.set && ref.name === icon.name
+  })
+  if (entry !== undefined) return libraryDisplayName(entry, catalog.activeSetIsOnline)
+  return icon.source === 'bundle' ? icon.name.replaceAll('-', ' ') : icon.name
+}
 
-// --- anchored positioning -------------------------------------------------
+/** Where a fresh pick lands: asking → selected empty → first empty (mockup). */
+function firstPlaceableIndex(): number | null {
+  const asking = chart.askingCellIndex
+  if (asking !== null) return asking
+  const selected = chart.selectedCellIndex
+  if (selected !== null) {
+    const cell = chart.doc.cells[selected]
+    if (cell !== undefined && isCellEmpty(cell)) return selected
+  }
+  return nextEmptyCellIndex(chart.doc, -1)
+}
 
-const PICKER_WIDTH = 400
-const EDITOR_WIDTH = 248
-const INSET = 12
+function placeLibraryPick(icon: IconRef, label: string): void {
+  const index = firstPlaceableIndex()
+  if (index === null) {
+    announce('The grid is full — add rows or columns first.')
+    return
+  }
+  const cell = chart.doc.cells[index]
+  if (cell === undefined || !isCellEmpty(cell)) return
+  chart.setCell(index, { ...cell, icon, label })
+  chart.askNextAfter(index) // mockup: pick advances to the next empty card
+}
+
+function onKeyboardPlace(icon: IconRef): void {
+  placeLibraryPick(icon, labelForIcon(icon))
+}
+
+function onLibraryUpload(payload: { imageDataUrl: string; suggestedLabel: string }): void {
+  const index = firstPlaceableIndex()
+  if (index === null) {
+    announce('The grid is full — add rows or columns first.')
+    return
+  }
+  const cell = chart.doc.cells[index]
+  if (cell === undefined || !isCellEmpty(cell)) return
+  const label = cell.label.trim() !== '' ? cell.label : payload.suggestedLabel
+  chart.setCell(index, { ...cell, icon: null, label, imageDataUrl: payload.imageDataUrl })
+  chart.askNextAfter(index)
+}
 
 /**
- * Position the word picker beside its card: below when the sheet has room,
- * above when it doesn't — with the sprout stem aligned to the card centre.
+ * Library drop onto a card (bubbling CustomEvent from GridCell): empty cards
+ * fill + advance (mockup); filled cards swap the picture keeping the card's
+ * label, tint and text-only state. Recents refresh via the exposed panel.
  */
-function positionPicker(): void {
-  const well = wellEl.value
-  if (well === null || !isWide.value || chart.askingSlotId === null) {
-    pickerPos.value = null
-    return
+function onCellPlace(event: Event): void {
+  if (!(event instanceof CustomEvent)) return
+  const detail = event.detail as LibraryPlaceDetail
+  const { index, payload } = detail
+  const cell = chart.doc.cells[index]
+  if (cell === undefined) return
+  if (isCellEmpty(cell)) {
+    chart.setCell(index, { ...cell, icon: payload.icon, label: payload.label })
+    chart.askNextAfter(index)
+  } else {
+    chart.setCell(index, { ...cell, icon: payload.icon, imageDataUrl: undefined })
   }
-  const wellRect = well.getBoundingClientRect()
-  const card = well.querySelector<HTMLElement>('.slot-cell.is-asking')
-  if (card === null) {
-    pickerPos.value = null
-    return
-  }
-  const cardRect = card.getBoundingClientRect()
-  const left = Math.min(
-    Math.max(cardRect.left - wellRect.left, INSET),
-    Math.max(wellRect.width - PICKER_WIDTH - INSET, INSET),
-  )
-  const sproutX = Math.min(
-    Math.max(cardRect.left + cardRect.width / 2 - wellRect.left - left, 20),
-    PICKER_WIDTH - 20,
-  )
-  const estimatedHeight = 340
-  const below = cardRect.bottom - wellRect.top + 14
-  const top =
-    below + estimatedHeight > wellRect.height
-      ? Math.max(cardRect.top - wellRect.top - estimatedHeight - 14, INSET)
-      : below
-  pickerPos.value = { top, left, sproutX }
+  libraryPanel.value?.notePlaced(payload.icon, payload.label)
 }
 
-/** Anchor the compact editor below the selected filled card. */
-function positionEditor(): void {
-  const well = wellEl.value
-  if (well === null || !isWide.value || chart.selectedSlotId === null) {
-    editorPos.value = null
-    return
-  }
-  const wellRect = well.getBoundingClientRect()
-  const card = well.querySelector<HTMLElement>('.slot-cell.is-selected')
-  if (card === null) {
-    editorPos.value = null
-    return
-  }
-  const cardRect = card.getBoundingClientRect()
-  const left = Math.min(
-    Math.max(cardRect.left - wellRect.left, INSET),
-    Math.max(wellRect.width - EDITOR_WIDTH - INSET, INSET),
-  )
-  const estimatedHeight = 190
-  const below = cardRect.bottom - wellRect.top + 12
-  const top =
-    below + estimatedHeight > wellRect.height
-      ? Math.max(cardRect.top - wellRect.top - estimatedHeight - 12, INSET)
-      : below
-  editorPos.value = { top, left }
-}
+/** Listener lifecycle tracks the v-if'd grid wrapper (empty state swaps it). */
+const gridRegionEl = ref<HTMLElement | null>(null)
 
-function repositionAnchors(): void {
+watch(gridRegionEl, (element, previous) => {
+  if (previous !== null) previous.removeEventListener(LIBRARY_PLACE_EVENT, onCellPlace)
+  if (element !== null) element.addEventListener(LIBRARY_PLACE_EVENT, onCellPlace)
+})
+
+onBeforeUnmount(() => {
+  gridRegionEl.value?.removeEventListener(LIBRARY_PLACE_EVENT, onCellPlace)
+})
+
+// --- template apply (one discrete undo step, owned by the store) ------------
+
+function onTemplateApplied(): void {
+  omitPlacementAnnounce = true // the template's own announcement wins
+  announce('Starter template applied')
+  // Expire the suppression even when the apply leaves placedCount unchanged
+  // (e.g. Blank) — pre-flush watchers run before this nextTick clears it.
   void nextTick(() => {
-    positionPicker()
-    positionEditor()
+    omitPlacementAnnounce = false
   })
 }
 
-// --- panel actions ---------------------------------------------------------
+// --- global keyboard: undo/redo + Escape unwind (v1 shape, v2 layers) ------
 
-function onToggleBrowse(): void {
-  browseOpen.value = !browseOpen.value
-  if (browseOpen.value) {
-    // browsing pauses the card-first flow: the asking card keeps its place
-    if (!isWide.value) chart.askSlot(null)
-    void nextTick(() => {
-      builderEl.value?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
-    })
-  }
-}
-
-/**
- * Focus return for the browse drawer (WCAG 2.4.3): remember the trigger
- * when the drawer opens; on close, put focus back where it started
- * instead of dropping it on <body>.
- */
-let browseTrigger: HTMLElement | null = null
-
-watch(browseOpen, (open) => {
-  if (open) {
-    browseTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  } else if (browseTrigger !== null) {
-    // The trigger may be gone (e.g. the word picker closed with us) —
-    // fall back to the top bar's Browse button so keyboard users are
-    // never stranded on <body>.
-    if (browseTrigger.isConnected) browseTrigger.focus()
-    else builderEl.value?.querySelector<HTMLElement>('.tbtn.browse')?.focus()
-    browseTrigger = null
-  }
-})
-
-function onToggleSettings(): void {
-  settingsOpen.value = !settingsOpen.value
-}
-
-function onToggleHelp(): void {
-  helpOpen.value = !helpOpen.value
-}
-
-/** Close button on the hint strip: dismiss first-run hints for the session. */
-function onDismissHints(): void {
-  helpOpen.value = false
-  hintsDismissed.value = true
-}
-
-function onToggleStyleLabelSize(size: LabelSize): void {
-  labelSize.value = size
-}
-
-/** After a drawer pick on phone, close the drawer to reveal the chart. */
-function onDrawerPick(): void {
-  if (!isWide.value) browseOpen.value = false
-}
-
-/**
- * "Browse the library" from the word picker: retire the asking card's
- * picker and open the full library (dock on desktop, drawer below).
- */
-function onPickerBrowse(): void {
-  chart.askSlot(null)
-  if (!browseOpen.value) onToggleBrowse()
-}
-
-// --- keyboard: Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z / Ctrl+Y redo · Escape
-// unwinds export → settings → help → drawer → picker → selection
-
-function onKeydown(event: KeyboardEvent): void {
-  const target = event.target
-  const inField =
+function isFieldTarget(target: EventTarget | null): boolean {
+  return (
     target instanceof HTMLElement &&
     (target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.tagName === 'SELECT' ||
       target.isContentEditable)
+  )
+}
 
-  if ((event.ctrlKey || event.metaKey) && !inField) {
+function onKeydown(event: KeyboardEvent): void {
+  if ((event.ctrlKey || event.metaKey) && !isFieldTarget(event.target)) {
     const key = event.key.toLowerCase()
     if (key === 'z') {
       event.preventDefault()
@@ -275,368 +357,258 @@ function onKeydown(event: KeyboardEvent): void {
       event.preventDefault()
       chart.redo()
       announce('Redo — change reapplied')
-      return
     }
+    return
   }
 
   if (event.key !== 'Escape') return
+  // Unwind one layer per press; focus return is handled by the watches below
+  // (drawers/sheet) and by the dialogs themselves (their contracts own it).
   if (exportOpen.value) {
     exportOpen.value = false
     return
   }
-  if (settingsOpen.value) {
-    settingsOpen.value = false
+  if (templatesOpen.value) {
+    templatesOpen.value = false
     return
   }
-  if (helpOpen.value) {
-    helpOpen.value = false
+  if (inspectorOpen.value) {
+    inspectorOpen.value = false
     return
   }
-  if (browseOpen.value) {
-    browseOpen.value = false
+  if (libraryOpen.value) {
+    libraryOpen.value = false
     return
   }
-  if (chart.askingSlotId !== null) {
-    chart.askSlot(null)
-    return
-  }
-  chart.selectSlot(null)
+  chart.askCell(null)
+  chart.selectCell(null)
 }
 
-// --- watchers --------------------------------------------------------------
+// --- drawer/sheet focus return (v1 pattern: restore the opener) -------------
 
-watch(
-  () => chart.askingSlotId,
-  () => repositionAnchors(),
-)
+let libraryTrigger: HTMLElement | null = null
+let inspectorTrigger: HTMLElement | null = null
 
-watch(
-  () => chart.selectedSlotId,
-  () => repositionAnchors(),
-)
+/**
+ * `flush: 'post'` — the shell clears its background-inert (toolbar inert
+ * while the drawer is open) in the same DOM patch, and a trigger INSIDE that
+ * inert tree cannot take focus until the attribute is gone. Pre-flush would
+ * call .focus() on an inert button (silently fails).
+ */
+watch(libraryOpen, (open) => {
+  if (open) {
+    libraryTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return
+  }
+  const trigger = libraryTrigger
+  libraryTrigger = null
+  if (trigger !== null && trigger.isConnected) trigger.focus()
+}, { flush: 'post' })
 
-watch(
-  () => chart.doc.grid,
-  () => repositionAnchors(),
-)
-
-// Opening/closing the dock shifts the well — anchors must follow.
-watch(dockOpen, () => repositionAnchors())
-
-function onResize(): void {
-  repositionAnchors()
-}
+watch(inspectorOpen, (open) => {
+  if (open) {
+    inspectorTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    return
+  }
+  const trigger = inspectorTrigger
+  inspectorTrigger = null
+  if (trigger !== null && trigger.isConnected) trigger.focus()
+}, { flush: 'post' })
 
 onMounted(() => {
-  wideQuery = window.matchMedia(WIDE_QUERY)
-  desktopQuery = window.matchMedia(DESKTOP_QUERY)
-  syncMedia()
-  wideQuery.addEventListener('change', syncMedia)
-  desktopQuery.addEventListener('change', syncMedia)
+  if (typeof window === 'undefined') return
   window.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', onResize)
 })
 
-onUnmounted(() => {
-  wideQuery?.removeEventListener('change', syncMedia)
-  desktopQuery?.removeEventListener('change', syncMedia)
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', onResize)
 })
+
 </script>
 
 <template>
-  <div ref="builderEl" class="builder">
-    <AppTopBar
-      :browse-open="browseOpen"
-      :settings-open="settingsOpen"
-      :help-open="helpOpen"
-      @toggle-browse="onToggleBrowse"
-      @toggle-settings="onToggleSettings"
-      @open-export="exportOpen = true"
-      @toggle-help="onToggleHelp"
-      @print="printChart"
-    />
-
+  <div>
     <!-- screen-reader announcements: placements, removals, undo/redo -->
     <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
 
-    <!-- the workspace: the docked library (desktop) beside the sheet's desk -->
-    <div class="workspace">
-      <Transition name="dock">
-        <aside
-          v-if="dockOpen"
-          class="library-dock"
-          aria-label="Picture library"
-        >
-          <IconBrowser @pick="onDrawerPick" />
-        </aside>
-      </Transition>
+    <BuilderShell v-model:library-open="libraryOpen" v-model:inspector-open="inspectorOpen">
+      <template #toolbar>
+        <BuilderToolbar
+          :library-open="libraryOpen"
+          :inspector-open="inspectorOpen"
+          @back="onBack"
+          @toggle-library="toggleLibrary"
+          @toggle-inspector="toggleInspector"
+          @open-templates="openTemplates"
+          @open-page="openPage"
+          @open-export="openExport"
+          @print="onPrint"
+          @undo="onUndo"
+          @redo="onRedo"
+        />
+      </template>
 
-      <!-- the desk: the sheet rests here, nothing else competes -->
-      <main ref="wellEl" class="well" :data-label-size="labelSize" aria-label="Chart sheet">
-        <!-- click-away surface that closes the settings popover -->
-        <div
-          v-if="settingsOpen"
-          class="settings-scrim"
-          aria-hidden="true"
-          @click="settingsOpen = false"
-        ></div>
+      <template #library>
+        <LibraryPanel
+          ref="libraryPanel"
+          :on-keyboard-place="onKeyboardPlace"
+          @upload="onLibraryUpload"
+        />
+      </template>
 
-        <ChartSheet />
-
-        <!-- the word picker, sprouting from the asking card -->
-        <Transition name="pop">
-          <WordPicker
-            v-if="chart.askingSlot !== null"
-            class="picker-anchor"
-            :style="
-              pickerPos !== null
-                ? { top: pickerPos.top + 'px', left: pickerPos.left + 'px', '--sprout-x': pickerPos.sproutX + 'px' }
-                : undefined
-            "
-            @close="chart.askSlot(null)"
-            @browse="onPickerBrowse"
-          />
-        </Transition>
-
-        <!-- the compact editor, anchored to the selected filled card -->
-        <Transition name="pop">
-          <div
-            v-if="chart.selectedSlot !== null"
-            class="editor-anchor"
-            :style="editorPos !== null ? { top: editorPos.top + 'px', left: editorPos.left + 'px' } : undefined"
+      <template #canvas>
+        <PrintCanvas :aspect-ratio="aspectRatio" :page-label="pageLabel" :notice="storageNote">
+          <PrintPage
+            :page-setup="chart.doc.pageSetup"
+            :margin-mm="marginMm"
+            :title="chart.doc.title"
+            :style="sheetStyleVars"
+            @update:title="chart.setTitle"
           >
-            <SlotEditor @replace="onToggleBrowse" />
-          </div>
-        </Transition>
+            <template #grid>
+              <!-- The grid ALWAYS renders — an all-empty chart still shows its
+                   tappable dashed cells (user story: "tap a card and type").
+                   The Anton empty-state sits above it as a screen-only hint
+                   and disappears on print (data-screen-only). -->
+              <div v-if="gridEmpty" class="sheet-empty" data-screen-only>
+                <p class="se-head">Tap a <span class="hl">card.</span><br>Type a word.</p>
+                <p class="se-sub">
+                  Pick a picture from the library — every card prints hand-sized on this
+                  sheet, at any page size.
+                </p>
+                <button type="button" class="se-btn" @click="openTemplates">
+                  Start from a template
+                </button>
+              </div>
+              <div ref="gridRegionEl" class="grid-region">
+                <PageGrid
+                  :grid="chart.doc.grid"
+                  :cells="chart.doc.cells"
+                  :selected-cell-index="chart.selectedCellIndex"
+                  :asking-cell-index="chart.askingCellIndex"
+                  @select="onCellSelect"
+                  @ask="onCellAsk"
+                  @swap="onCellSwap"
+                  @label-edit="onLabelEdit"
+                  @label-input="onLabelInput"
+                />
+              </div>
+            </template>
+            <template #foot>
+              <p v-if="attribution !== ''" class="foot-attrib">{{ attribution }}</p>
+            </template>
+          </PrintPage>
+        </PrintCanvas>
+      </template>
 
-        <!-- chart settings popover -->
-        <Transition name="pop">
-          <div v-if="settingsOpen" id="chart-settings" class="settings-anchor">
-            <StyleControls @close="settingsOpen = false" @label-size="onToggleStyleLabelSize" />
-          </div>
-        </Transition>
+      <template #inspector>
+        <InspectorPanel @close="inspectorOpen = false" @browse="onInspectorBrowse" />
+      </template>
+    </BuilderShell>
 
-        <!-- hints: first-run, or summoned any time via Help -->
-        <div v-if="hintsVisible" class="hint-strip" :class="{ 'is-help': helpOpen }">
-          <span><b>Tap a card</b> and type what it should say</span>
-          <span><b>Pick a picture</b> — the next card asks</span>
-          <span><b>Click a label</b> to rename it</span>
-          <button
-            type="button"
-            class="hint-close"
-            aria-label="Dismiss hints"
-            @click="onDismissHints"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-          </button>
-        </div>
-      </main>
-    </div>
-
-    <!-- Browse pictures: the collection drawer (below desktop widths) -->
-    <Transition name="drawer">
-      <div v-if="browseOpen && !isDesktop" class="drawer-scrim" @click="browseOpen = false">
-        <div
-          id="icon-browser-drawer"
-          class="drawer"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Browse pictures"
-          @click.stop
-        >
-          <!-- visible close: touch has no Escape key -->
-          <button
-            type="button"
-            class="drawer-close"
-            aria-label="Close pictures"
-            @click="browseOpen = false"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-          </button>
-          <IconBrowser @pick="onDrawerPick" />
-        </div>
-      </div>
-    </Transition>
-
-    <ExportDialog :open="exportOpen" @close="exportOpen = false" />
-    <IconDragGhost />
+    <TemplateGallery
+      :open="templatesOpen"
+      @applied="onTemplateApplied"
+      @closed="templatesOpen = false"
+    />
+    <ExportDialog :open="exportOpen" :doc="chart.doc" @close="exportOpen = false" />
   </div>
 </template>
 
 <style scoped>
-.builder {
+/* The grid wrapper keeps PageGrid's 100%-fill inside the sheet's flex box. */
+.grid-region {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* — first-run empty state (mockup .sheet-empty; Anton's sanctioned
+ *   micro-presence — attributed to the sheet, so every length is cqw) — */
+.sheet-empty {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  overflow: hidden;
-}
-
-/* the workspace row: docked library (desktop) beside the sheet's desk */
-.workspace {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-}
-
-/* the docked library: 300px of always-visible browsing, sheet beside it */
-.library-dock {
-  flex: none;
-  width: 300px;
-  margin: 0 0 14px 14px;
-  overflow: hidden;
-}
-
-/* the desk: the sheet rests here, centred, nothing else competes */
-.well {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  margin: 0 14px 14px;
-  border-radius: 12px;
-  padding: 32px;
-  position: relative;
-  display: flex;
-}
-
-/* transparent click-away under the settings popover (above the sheet) */
-.settings-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-}
-
-[data-label-size='s'] { --slot-label-scale: 0.85; }
-[data-label-size='l'] { --slot-label-scale: 1.25; }
-
-/* picker / editor / settings anchors */
-.picker-anchor,
-.editor-anchor,
-.settings-anchor {
-  position: absolute;
-  z-index: 20;
-}
-.settings-anchor {
-  top: 12px;
-  right: 12px;
-}
-
-/* first-run hints: one quiet pill, three facts, dismissible */
-.hint-strip {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  translate: -50% 0;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  padding: 6px 10px 6px 16px;
-  border-radius: 999px;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
-  /* wrap instead of clipping at mid widths (WCAG 1.4.10 reflow) */
-  flex-wrap: wrap;
-  white-space: normal;
-  max-width: calc(100% - 28px);
-  text-align: left;
-}
-.hint-strip b { font-weight: 600; color: var(--text); }
-.hint-close {
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: none;
+  text-align: center;
+  gap: 2.8cqw;
+  padding: 4cqw;
+}
+
+.se-head {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 6.4cqw;
+  line-height: 1.04;
+  color: var(--ink);
+}
+
+.se-head .hl {
+  background: var(--mint);
+  color: var(--ink);
+  border-radius: 0.08em;
+  padding: 0 0.14em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.se-sub {
+  margin: 0;
+  max-width: 54cqw;
+  font-size: 1.9cqw;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.se-btn {
+  margin-top: 1cqw;
+  padding: 10px 16px;
   border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: opacity 120ms ease;
 }
-.hint-close:hover { background: var(--raised); color: var(--text); }
+.se-btn:hover {
+  opacity: 0.85;
+}
+.se-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
 
-/* browse drawer: the library, one click away */
-.drawer-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background: rgba(19, 23, 17, 0.32);
+/* Attribution rides the sheet (decision 10) — quiet, wrapping, prints. */
+.foot-attrib {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
-.drawer {
+
+.sr-only {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 300px;
-  background: var(--paper);
-  border-radius: 0 18px 18px 0;
-  padding: 12px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  display: flex;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
-.drawer-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-}
-.drawer-close:hover { background: var(--raised); color: var(--text); }
-/* keep the set-select clear of the drawer's close button */
-.drawer :deep(.set-row) { padding-right: 44px; }
-
-/* transitions: transform/opacity only, <400ms, reduced-motion safe */
-.pop-enter-active, .pop-leave-active { transition: opacity 150ms ease, translate 150ms ease; }
-.pop-enter-from, .pop-leave-to { opacity: 0; translate: 0 6px; }
-
-.dock-enter-active, .dock-leave-active { transition: opacity 160ms ease, translate 160ms ease; }
-.dock-enter-from, .dock-leave-to { opacity: 0; translate: -12px 0; }
-
-.drawer-enter-active, .drawer-leave-active { transition: opacity 200ms ease; }
-.drawer-enter-from, .drawer-leave-to { opacity: 0; }
-.drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: translate 220ms ease; }
-.drawer-enter-from .drawer, .drawer-leave-to .drawer { translate: -100% 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pop-enter-active, .pop-leave-active,
-  .dock-enter-active, .dock-leave-active,
-  .drawer-enter-active, .drawer-leave-active,
-  .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: none; }
-}
-
-/* ---------------- phone: its own composition ---------------- */
-@media (max-width: 720px) {
-  .well { padding: 14px; margin: 0 10px 10px; overflow-y: auto; display: block; }
-  .picker-anchor, .editor-anchor, .settings-anchor { position: fixed; left: 10px; right: 10px; top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 30; }
-  .settings-anchor { top: auto; }
-  /* the auto hint strip stays off on phone; Help opens it as a stacked card */
-  .hint-strip { display: none; }
-  .hint-strip.is-help {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    white-space: normal;
-    top: 62px;
-    bottom: auto;
+  .se-btn {
+    transition: none;
   }
-  .drawer { width: min(320px, 86vw); }
 }
 </style>
