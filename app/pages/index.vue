@@ -153,8 +153,13 @@ useHead({
     </div>
 
     <p class="m-controls">
-      <button type="button" class="m-pause" @click="paused = !paused">
-        {{ paused ? 'Play animation' : 'Pause animation' }}
+      <button
+        type="button"
+        class="m-pause"
+        :aria-label="paused ? 'Play animation' : 'Pause animation'"
+        @click="paused = !paused"
+      >
+        <Icon :icon="paused ? 'mdi:play' : 'mdi:pause'" aria-hidden="true" />
       </button>
     </p>
   </section>
@@ -252,13 +257,17 @@ a { color: inherit; }
 @keyframes slide { to { transform: translateX(-50%); } }
 .m-controls { margin: 18px 0 0; text-align: center; }
 .m-pause {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
   background: none; border: none; cursor: pointer;
-  color: #fff; font-size: 13px; font-weight: 600;
-  text-decoration: underline; text-underline-offset: 3px;
-  padding: 6px 8px; opacity: 0.8;
+  color: #fff;
+  padding: 0; opacity: 0.8;
+  border-radius: 999px;
   transition: opacity 120ms ease;
 }
+.m-pause svg { width: 20px; height: 20px; }
 .m-pause:hover, .m-pause:focus-visible { opacity: 1; }
+.m-pause:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 .m-card {
   flex: none; width: 124px;
   background: var(--paper); color: var(--ink);
