@@ -75,6 +75,15 @@ const scrimVisible = computed(
     (!inspectorDocked.value && props.inspectorOpen),
 )
 
+/**
+ * The library drawer declares aria-modal="true" (dialog semantics below its
+ * dock breakpoint); this is the background-inert pairing that makes that
+ * declaration true — the toolbar and canvas leave the tab order while the
+ * drawer is open. The docked library and the inspector sheet are non-modal
+ * regions and never inert anything.
+ */
+const libraryModal = computed(() => !libraryDocked.value && props.libraryOpen)
+
 /* Opening an overlay moves focus into the region so keyboard and screen
  * reader users land inside the dialog; the page restores the trigger on
  * close via the *Closed events. */
@@ -114,7 +123,7 @@ function onScrimClick(): void {
 
 <template>
   <div class="shell">
-    <header class="toolbar">
+    <header class="toolbar" :inert="libraryModal || undefined">
       <slot name="toolbar" />
     </header>
 
@@ -125,7 +134,7 @@ function onScrimClick(): void {
         :class="{ 'is-open': libraryOpen }"
         :role="libraryDocked ? undefined : 'dialog'"
         :aria-modal="libraryDocked ? undefined : 'true'"
-        aria-label="Picture library"
+        aria-label="Picture library drawer"
         :inert="!libraryDocked && !libraryOpen"
         tabindex="-1"
       >
@@ -150,7 +159,7 @@ function onScrimClick(): void {
         <slot name="library" />
       </aside>
 
-      <main class="canvas" aria-label="Chart canvas">
+      <main class="canvas" aria-label="Builder desk" :inert="libraryModal || undefined">
         <slot name="canvas" />
       </main>
 
@@ -158,7 +167,7 @@ function onScrimClick(): void {
         ref="inspectorEl"
         class="inspector"
         :class="{ 'is-open': inspectorOpen }"
-        aria-label="Inspector"
+        aria-label="Inspector dock"
         :inert="!inspectorDocked && !inspectorOpen"
         tabindex="-1"
       >

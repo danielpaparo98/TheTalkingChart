@@ -295,7 +295,10 @@ if (typeof window !== 'undefined') {
 }
 
 .title-edit-btn:focus-visible {
-  outline: 2px solid var(--mint);
+  /* Dark mint, not --mint: the ring sits on WHITE paper (this sheet), where
+     #a7ff9c reads ~0.8:1 and fails the visible-indicator requirement. The
+     --mint-ink token clears 9.9:1 here. */
+  outline: 2px solid var(--mint-ink, var(--ink));
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -314,7 +317,9 @@ if (typeof window !== 'undefined') {
   width: 100%;
   padding: 0;
   border: none;
-  border-bottom: 0.35cqw solid var(--mint);
+  /* Editing-state boundary (1.4.11): dark mint like GridCell's identical
+     inline label editor — light --mint is ~0.8:1 on this white paper. */
+  border-bottom: 0.35cqw solid var(--mint-ink, var(--ink));
   background: transparent;
   outline: none;
 }

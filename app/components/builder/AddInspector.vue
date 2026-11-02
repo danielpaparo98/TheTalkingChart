@@ -310,7 +310,7 @@ async function onUploadChange(event: Event): Promise<void> {
     padding: 8px 10px;
   }
   .inp.has-icon { padding-left: 30px; }
-  .inp::placeholder { color: var(--muted); opacity: 0.75; }
+  .inp::placeholder { color: var(--muted); opacity: 1; } /* muted alone is 6:1 on paper — no opacity multiplier (1.4.3) */
   .inp:focus {
     outline: none;
     border-color: var(--mint-ink, #1d4d16);

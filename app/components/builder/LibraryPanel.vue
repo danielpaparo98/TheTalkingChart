@@ -415,9 +415,11 @@ async function onFileChosen(event: Event): Promise<void> {
   border-radius: 8px;
 }
 
+/* Placeholder text is real text — plain --muted (6.0:1 on paper), no
+ * opacity multiplier (0.75×muted measured ~3.5:1, below AA 1.4.3). */
 .inp::placeholder {
   color: var(--muted);
-  opacity: 0.75;
+  opacity: 1;
 }
 
 .inp:focus {

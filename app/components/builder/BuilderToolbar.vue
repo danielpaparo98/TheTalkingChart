@@ -19,7 +19,9 @@
  *   while a dock is docked its toggle renders `display: none`.
  * - Emits: `back` · `toggleLibrary` · `toggleInspector` · `openTemplates`
  *   · `openPage` (the page focuses the inspector's Page mode) ·
- *   `openExport` · `print`.
+ *   `openExport` · `print` · `undo` · `redo` — the history buttons emit so
+ *   the PAGE runs the store call and its live-region announcement, exactly
+ *   like Ctrl/Cmd+Z (kept in sync for both entry points).
  *
  * Visual reference: design_iterations/mockup-builder-v2.html — inline
  * stroke SVGs, 36px controls, 8px radii, Work Sans, and mint used exactly
@@ -43,6 +45,8 @@ const emit = defineEmits<{
   openPage: []
   openExport: []
   print: []
+  undo: []
+  redo: []
 }>()
 
 const store = useChartStore()
@@ -126,7 +130,7 @@ function onNameEnter(event: KeyboardEvent): void {
         :disabled="!store.canUndo"
         aria-label="Undo"
         title="Undo (Ctrl+Z)"
-        @click="store.undo()"
+        @click="emit('undo')"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M3.2 6.4h6.6a3.1 3.1 0 0 1 0 6.2H7.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -139,7 +143,7 @@ function onNameEnter(event: KeyboardEvent): void {
         :disabled="!store.canRedo"
         aria-label="Redo"
         title="Redo (Ctrl+Shift+Z)"
-        @click="store.redo()"
+        @click="emit('redo')"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M12.8 6.4H6.2a3.1 3.1 0 0 0 0 6.2h2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -159,7 +163,7 @@ function onNameEnter(event: KeyboardEvent): void {
         <span class="tb-txt">Templates</span>
       </button>
 
-      <button type="button" class="tb-btn" aria-label="Page setup" @click="emit('openPage')">
+      <button type="button" class="tb-btn tb-page" aria-label="Page setup" @click="emit('openPage')">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M4 2h5.4L12.6 5.6V14H4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
           <path d="M9.2 2v3.8h3.4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
@@ -343,20 +347,44 @@ function onNameEnter(event: KeyboardEvent): void {
 }
 
 /* --- phone compaction per mockup: labeled buttons condense, name breathes.
- * Print keeps its label on purpose — it is the app's primary action. -------- */
+ * Print keeps its label on purpose — it is the app's primary action.
+ *
+ * The strip must also survive a 320px viewport (WCAG 1.4.10 reflow, ~400%
+ * zoom): each textless button is 31px, the icon buttons step down to 34px,
+ * the divider drops, and the Page button folds away below 720px — its mode
+ * stays reachable (it is the inspector's default view; deselect + Settings
+ * returns to it). Budget check at 320px: 34 + 2 + 2 + (31·4 + 34·2 + 68
+ * print + 12 gaps = 272) = 310 ≤ 312 inner px. --------------------------- */
 @media (max-width: 720px) {
   .toolbar-row {
-    gap: 4px;
-    padding: 0 8px;
+    gap: 2px;
+    padding: 0 4px;
   }
   .tb-txt {
     display: none;
   }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
   .tb-btn {
-    padding: 0 10px;
+    padding: 0 8px;
+  }
+  /* The CTA's own padding (specificity) must shrink with the row, else the
+     320px budget above spills by 16px. */
+  .tb-btn.cta {
+    padding: 0 8px;
+  }
+  .right {
+    gap: 2px;
+  }
+  .divider,
+  .tb-page {
+    display: none;
   }
   .name {
     flex: 1 1 0;
+    min-width: 0;
     font-size: 14px;
   }
 }

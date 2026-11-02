@@ -26,6 +26,13 @@ const props = defineProps<{
   aspectRatio: number
   /** Status-line caption, e.g. "A4 · Landscape · 297 × 210 mm" (built by the page; rendered uppercase). */
   pageLabel: string
+  /**
+   * Attention line for the desk (a11y subtask 16): the page passes the
+   * chart store's storage failure so "Not saved" is announced (role=alert)
+   * and visible above the status caption at every viewport width. Null/empty
+   * renders nothing.
+   */
+  notice?: string | null
 }>()
 
 const {
@@ -173,6 +180,15 @@ onBeforeUnmount(() => {
       <button type="button" class="fit" :aria-pressed="isFit" @click="fit()">Fit</button>
     </div>
 
+    <!-- Storage-failure alert (the page feeds the store's storageError):
+         assertive (role=alert) because unsaved work must interrupt; no
+         transition, so it is present the tick it mounts. -->
+    <p
+      v-if="props.notice !== null && props.notice !== undefined && props.notice !== ''"
+      class="canvas-alert"
+      role="alert"
+    >{{ props.notice }}</p>
+
     <p class="canvas-status">
       <span class="dot" aria-hidden="true">&#9679;</span>
       <span>{{ pageLabel }}</span>
@@ -306,6 +322,26 @@ onBeforeUnmount(() => {
 .canvas-status .dot {
   color: var(--mint);
   font-size: 8px;
+}
+
+/* — desk alert (storage failure): pill-warning pair, 6.9:1, above the
+     status caption and clear of the zoom pill at every width — */
+.canvas-alert {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  translate: -50% 0;
+  z-index: 6;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--pill-warning-bg);
+  color: var(--pill-warning-fg);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
 }
 
 /* reduced motion kills every canvas transition, including zoom easing */

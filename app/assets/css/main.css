@@ -134,6 +134,11 @@
   --band: #0e120d;
   --desk: #f4f8f2;
   --line: #e2e8dc;
+  /* Dark mint from the approved mockup's private --mint-ink: builder rings,
+     focus outlines and label underlines. #1d4d16 = 9.9:1 on paper, 9.2:1 on
+     the desk and mint-soft, so every ring it paints clears WCAG 1.4.11.
+     (Components carried per-file fallbacks before — ink here, not a token.) */
+  --mint-ink: #1d4d16;
   --r-ctl: 8px;
   --r-card: 10px;
   --r-sheet: 14px;
@@ -179,6 +184,25 @@
 /* Tabular figures for counts, KPIs and other numeric UI */
 @utility num {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Global reduced-motion safety net (a11y subtask 16). Per-component media
+ * blocks already kill their own motion (dock/drawer/sheet, cell fill and
+ * pulse, grid reflow, dialog fades, zoom easing); this net catches any
+ * straggler a later rule forgets — colours snap, transforms never travel.
+ * 0.01 ms (not `none`) so one-shot durations still fire their animationend
+ * / transitionend cleanup timers exactly once.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ---------------------------------------------------------------------------

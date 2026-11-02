@@ -203,7 +203,7 @@ function onTitleInput(event: Event): void {
     color: var(--text);
     padding: 8px 10px;
   }
-  .inp::placeholder { color: var(--muted); opacity: 0.75; }
+  .inp::placeholder { color: var(--muted); opacity: 1; } /* muted alone is 6:1 on paper — no opacity multiplier (1.4.3) */
   .inp:focus {
     outline: none;
     border-color: var(--mint-ink, #1d4d16);

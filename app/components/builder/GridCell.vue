@@ -171,8 +171,57 @@ function onClick(): void {
   activate()
 }
 
+// --- Arrow-key navigation between cards (WAI-ARIA grid-style shortcuts) ----
+//
+// Tab steps card to card in row-major order; arrow keys jump spatially:
+// Left/Right move one column (wrap-free), Up/Down one row. All movement is
+// plain DOM focus — no selection change — so Enter still activates what you
+// land on. Requires the `cols` prop (PageGrid always passes it); without it
+// the cards keep the plain tab-order behaviour.
+
+/** Focus a sibling card by position index; true when the move happened. */
+function focusSibling(target: number): boolean {
+  const el =
+    rootEl.value?.parentElement?.querySelector<HTMLElement>(
+      `[data-index="${target}"]`,
+    ) ?? null
+  if (el === null) return false
+  el.focus()
+  return true
+}
+
+/** Handle arrow presses; true when the key was consumed by a move. */
+function onArrowNav(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false
+  const cols = props.cols
+  if (cols === undefined) return false
+  const { row, col } = cellPosition(props.index, cols)
+  if (event.key === 'ArrowLeft') {
+    if (col === 0) return false
+    if (focusSibling(props.index - 1)) event.preventDefault()
+    return true
+  }
+  if (event.key === 'ArrowRight') {
+    if (col + 1 >= cols) return false
+    if (focusSibling(props.index + 1)) event.preventDefault()
+    return true
+  }
+  if (event.key === 'ArrowUp') {
+    if (row === 0) return false
+    if (focusSibling(props.index - cols)) event.preventDefault()
+    return true
+  }
+  if (event.key === 'ArrowDown') {
+    // Down past the last row simply misses a cell — no move, no scroll.
+    if (focusSibling(props.index + cols)) event.preventDefault()
+    return true
+  }
+  return false
+}
+
 function onKeydown(event: KeyboardEvent): void {
   if (isEditing.value) return // the input handles (and stops) its own keys
+  if (onArrowNav(event)) return
   if (event.key === 'Enter') {
     event.preventDefault()
     // Enter on an already-selected card goes to the label editor (WYSIWYG);

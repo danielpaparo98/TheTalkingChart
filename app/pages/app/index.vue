@@ -22,17 +22,6 @@
  */
 definePageMeta({ layout: 'app' })
 
-useHead({
-  title: 'Chart builder — The Talking Chart',
-  meta: [
-    {
-      name: 'description',
-      content:
-        'Build a printable picture communication chart: pick from 50,000 icons, place them on the grid, label each card, and print. Free and works offline.',
-    },
-  ],
-})
-
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BuilderShell from '~/components/builder/BuilderShell.vue'
 import BuilderToolbar from '~/components/builder/BuilderToolbar.vue'
@@ -56,6 +45,25 @@ import type { IconRef, IconSetMeta } from '~/types/icons'
 
 const chart = useChartStore()
 const catalog = useCatalogStore()
+
+/**
+ * Document title tracks the chart title (bookmarks/history/tabs announce the
+ * sheet's name; WCAG page-context quality). Reactive getter, defined after
+ * the store exists.
+ */
+useHead({
+  title: () => {
+    const name = chart.doc.title.trim()
+    return name !== '' ? `${name} — The Talking Chart` : 'Chart builder — The Talking Chart'
+  },
+  meta: [
+    {
+      name: 'description',
+      content:
+        'Build a printable picture communication chart: pick from 50,000 icons, place them on the grid, label each card, and print. Free and works offline.',
+    },
+  ],
+})
 
 // --- page-owned UI state (the shell/dialog open states live HERE) ----------
 
@@ -89,6 +97,16 @@ function resolveSetMeta(prefix: string): IconSetMeta | null {
 }
 
 const { printChart, attribution } = useExport({ doc: () => chart.doc, resolveSetMeta })
+
+/**
+ * Storage failure → the desk's attention line (PrintCanvas `notice`):
+ * role=alert so screen readers announce the failure assertively, and it
+ * stays visible while the user keeps working (store re-clears it on the
+ * first successful write).
+ */
+const storageNote = computed(() =>
+  chart.storageError ? 'Not saved — storage unavailable' : null,
+)
 
 // --- first-run empty state (Anton headline; sanctioned surface #1) ----------
 
@@ -151,6 +169,17 @@ function openPage(): void {
   chart.askCell(null) // ask/selection are UI-only — no undo entry either way
   chart.selectCell(null)
   inspectorOpen.value = true
+}
+
+/** Toolbar history buttons mirror Ctrl/Cmd+Z — same store call, same announce. */
+function onUndo(): void {
+  chart.undo()
+  announce('Undo — last change reversed')
+}
+
+function onRedo(): void {
+  chart.redo()
+  announce('Redo — change reapplied')
 }
 
 function onPrint(): void {
@@ -360,6 +389,12 @@ function onKeydown(event: KeyboardEvent): void {
 let libraryTrigger: HTMLElement | null = null
 let inspectorTrigger: HTMLElement | null = null
 
+/**
+ * `flush: 'post'` — the shell clears its background-inert (toolbar inert
+ * while the drawer is open) in the same DOM patch, and a trigger INSIDE that
+ * inert tree cannot take focus until the attribute is gone. Pre-flush would
+ * call .focus() on an inert button (silently fails).
+ */
 watch(libraryOpen, (open) => {
   if (open) {
     libraryTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -368,7 +403,7 @@ watch(libraryOpen, (open) => {
   const trigger = libraryTrigger
   libraryTrigger = null
   if (trigger !== null && trigger.isConnected) trigger.focus()
-})
+}, { flush: 'post' })
 
 watch(inspectorOpen, (open) => {
   if (open) {
@@ -378,7 +413,7 @@ watch(inspectorOpen, (open) => {
   const trigger = inspectorTrigger
   inspectorTrigger = null
   if (trigger !== null && trigger.isConnected) trigger.focus()
-})
+}, { flush: 'post' })
 
 onMounted(() => {
   if (typeof window === 'undefined') return
@@ -409,6 +444,8 @@ onBeforeUnmount(() => {
           @open-page="openPage"
           @open-export="openExport"
           @print="onPrint"
+          @undo="onUndo"
+          @redo="onRedo"
         />
       </template>
 
@@ -421,7 +458,7 @@ onBeforeUnmount(() => {
       </template>
 
       <template #canvas>
-        <PrintCanvas :aspect-ratio="aspectRatio" :page-label="pageLabel">
+        <PrintCanvas :aspect-ratio="aspectRatio" :page-label="pageLabel" :notice="storageNote">
           <PrintPage
             :page-setup="chart.doc.pageSetup"
             :margin-mm="marginMm"

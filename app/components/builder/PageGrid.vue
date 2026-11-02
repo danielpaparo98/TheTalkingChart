@@ -65,6 +65,10 @@ import {
   slotLabelScale,
 } from '~/utils/grid-geometry'
 
+// NOTE (a11y subtask 16): `cols` is forwarded to every card, so empty cards
+// announce row/column names instead of ordinals and Arrow keys navigate the
+// grid — the two optional hooks GridCell's contract reserves for the page.
+
 const props = defineProps<{
   /** Grid geometry from doc.grid — rows/cols/gap/labelSize drive every style below. */
   grid: GridSetup
@@ -159,6 +163,7 @@ function onLabelInput(index: number, label: string): void {
       :key="cell.id"
       :cell="cell"
       :index="index"
+      :cols="grid.cols"
       :selected="index === selectedCellIndex"
       :asking="index === askingCellIndex"
       @select="onSelect"
