@@ -571,15 +571,20 @@ onScopeDispose(() => {
 .lab {
   flex: 0 0 auto;
   max-width: 100%;
+  /* Plain block with a hard two-line cap — NOT the legacy
+     display:-webkit-box + -webkit-line-clamp pair: html2canvas-pro cannot
+     lay out the legacy clamp box (wrapped line runs draw on top of each
+     other in PNG/PDF exports, labels render as merged words) and Chrome's
+     print path spaces the clamped lines far apart. max-height is exactly
+     the old clamp's cap (2 × 1.14 line-height) and overflow stays hidden,
+     so the two-line clipping behaviour is unchanged on screen and paper. */
+  display: block;
   overflow: hidden;
+  max-height: 2.28em;
   font-size: calc(var(--slot-label-base, 11cqw) * var(--slot-label-scale, 1));
   font-weight: 600;
   line-height: 1.14;
   color: var(--ink);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 .lab-input {
