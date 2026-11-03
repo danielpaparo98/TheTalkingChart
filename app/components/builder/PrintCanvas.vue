@@ -56,7 +56,12 @@ function onPointerDown(event: PointerEvent): void {
   if (event.target instanceof Element && event.target.closest(panExcludes)) return
 
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
-  regionEl.value?.setPointerCapture(event.pointerId)
+  // Capture only when the gesture can do something — a one-pointer press at
+  // fit (or below) can neither pan nor pinch, so capturing steals native
+  // behaviours (text selection, future drags) for a dead gesture (N-4).
+  if (pointers.size === 2 || pannable.value) {
+    regionEl.value?.setPointerCapture(event.pointerId)
+  }
 
   if (pointers.size === 2) {
     // Second finger: switch to pinch. Gesture midpoint maps 1:1 in zoomTouch.

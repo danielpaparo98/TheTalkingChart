@@ -95,7 +95,7 @@ function onDragStart(event: DragEvent): void {
   color: var(--text);
   background: var(--paper);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   box-shadow: inset 0 0 0 1px var(--line);
   cursor: grab;
   user-select: none;

@@ -51,7 +51,7 @@ function isPressed(option: SegmentedOption): boolean {
   .seg {
     display: flex;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     overflow: hidden;
   }
   .seg button {

@@ -142,6 +142,7 @@
   --r-ctl: 8px;
   --r-card: 10px;
   --r-sheet: 14px;
+  --r-panel: 14px; /* modal panels + bottom-sheet corners (separate role from the paper sheet) */
 
   /* Shape + density */
   --radius-card: 14px;

@@ -197,7 +197,7 @@ function onClear(): void {
     display: grid;
     place-items: center;
     background: var(--desk);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     overflow: hidden;
   }
   .preview-glyph { width: 28px; height: 28px; }
@@ -213,7 +213,7 @@ function onClear(): void {
   .inp {
     width: 100%;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     font-family: inherit;
     font-size: 13.5px;
@@ -232,7 +232,7 @@ function onClear(): void {
     width: 26px;
     height: 26px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     display: grid;
     place-items: center;
     background: var(--paper);
@@ -254,7 +254,7 @@ function onClear(): void {
     justify-content: center;
     gap: 8px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     font-family: inherit;
     font-size: 13px;

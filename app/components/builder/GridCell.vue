@@ -484,7 +484,7 @@ onScopeDispose(() => {
   justify-content: center;
   padding: 6%; /* % = own inline size; cq units ON the container would resolve against the sheet */
   border: 1.5px solid transparent; /* reservation: empty↔filled morphs never shift the box */
-  border-radius: 10px; /* cards 10px (mockup --r-card) */
+  border-radius: var(--r-card, 10px); /* mockup --r-card */
   text-align: center;
   user-select: none;
   cursor: pointer;

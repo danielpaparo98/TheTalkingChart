@@ -309,7 +309,7 @@ async function onUploadChange(event: Event): Promise<void> {
   .inp {
     width: 100%;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     font-family: inherit;
     font-size: 13.5px;
@@ -365,7 +365,7 @@ async function onUploadChange(event: Event): Promise<void> {
     border: none;
     background: var(--paper);
     box-shadow: inset 0 0 0 1px var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     font-family: inherit;
     padding: 8px 3px 6px;
     cursor: pointer;
@@ -386,7 +386,7 @@ async function onUploadChange(event: Event): Promise<void> {
   .tile :deep(.glyph) { width: 26px; height: 26px; }
   .skeleton {
     height: 62px;
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--desk);
   }
   .res-empty {
@@ -399,7 +399,7 @@ async function onUploadChange(event: Event): Promise<void> {
   .more {
     margin-top: 10px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     font-family: inherit;
     font-size: 12.5px;
@@ -419,7 +419,7 @@ async function onUploadChange(event: Event): Promise<void> {
     place-items: center;
     border: none;
     background: var(--paper);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     box-shadow: inset 0 0 0 1px var(--line);
     cursor: pointer;
     transition: background-color 100ms ease;

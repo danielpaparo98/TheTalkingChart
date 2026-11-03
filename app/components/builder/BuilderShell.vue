@@ -286,7 +286,7 @@ function onScrimClick(): void {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   color: var(--muted);
   transition: background-color 120ms ease, color 120ms ease;
 }
@@ -324,7 +324,7 @@ function onScrimClick(): void {
     max-height: 62dvh;
     border-left: none;
     border-top: 1px solid var(--line);
-    border-radius: 14px 14px 0 0;
+    border-radius: var(--r-panel, 14px) var(--r-panel, 14px) 0 0;
     box-shadow: 0 -18px 48px rgba(14, 18, 13, 0.28);
     translate: 0 105%;
     transition: translate 220ms ease;
