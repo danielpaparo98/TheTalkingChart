@@ -204,12 +204,18 @@ function onPlaced(event: { message: string }): void {
       />
     </div>
 
+    <!-- The add/card flows' outcome as a visible chip: the sr-only live
+         region below keeps the announcement for screen readers, this one
+         shows it to everyone (same house pattern as the library panel). -->
+    <p v-if="announcement !== ''" class="place-note" aria-hidden="true">{{ announcement }}</p>
+
     <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
   </aside>
 </template>
 
 <style scoped>
   .inspector {
+    position: relative; /* anchors the outcome chip */
     width: 100%;
     height: 100%;
     display: flex;
@@ -263,6 +269,27 @@ function onPlaced(event: { message: string }): void {
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+
+  /* Outcome chip — floating pill at the panel's foot, cleared by the next
+     announcement. Purely visual (aria-hidden in the template). */
+  .place-note {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 3;
+    margin: 0;
+    padding: 7px 12px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+    background: var(--pill-positive-bg);
+    color: var(--pill-positive-fg);
+    box-shadow: 0 2px 10px rgba(19, 23, 17, 0.14);
+    pointer-events: none;
   }
 
   :focus-visible {

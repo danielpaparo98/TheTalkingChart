@@ -19,17 +19,19 @@
  *    `notePlaced(icon, label)` so the recents strip stays current.
  *
  * 2. CLICK / ENTER / SPACE (tile buttons fire click natively — the a11y
- *    keyboard path): the panel records the pick into recents, emits
- *    `pick(icon)`, then invokes the required prop
- *    `onKeyboardPlace(icon)`. The page decides where it lands — asking
- *    cell first, else selected empty cell, else first empty — per design
- *    decision #6 (pick → auto-advance).
+ *    keyboard path): the panel hands the pick to the required prop
+ *    `onKeyboardPlace(icon, label)` — the page decides where it lands
+ *    (asking cell first, else selected empty cell, else first empty, per
+ *    design decision #6), records the recents entry and reports the
+ *    outcome back through the `notice` prop, which renders as this
+ *    panel's visible status chip (purely visual — the page's own live
+ *    region covers screen readers, so the chip is aria-hidden).
  *
  * UPLOADS never place directly: the tile opens a device file picker, the
  * photo is re-encoded to a ≤512px WebP/JPEG data URL
  * (app/utils/upload-image.ts), and the panel emits
  * `upload` ({ imageDataUrl, suggestedLabel }) — the page fills the
- * asking/selected cell's `imageDataUrl`.
+ * asking/selected cell's `imageDataUrl` and reports via `notice`.
  *
  * FOCUS: pass `autofocus` (focuses when it flips true — inspector add-flow
  * and drawer opening) or call the exposed `focusSearch()`.
@@ -47,15 +49,29 @@ import { ARASAAC_SET_PREFIX } from '~/stores/catalog'
 import LibraryTile from './LibraryTile.vue'
 import type { IconRef, IconSetMeta } from '~/types/icons'
 
+/** Outcome chip the page feeds back after handling a pick or upload. */
+export interface LibraryNotice {
+  /** Short status line, e.g. `Placed "dog" · Card 3 of 12`. */
+  message: string
+  /** `ok` = placed; `warn` = nothing placed (grid full). */
+  tone: 'ok' | 'warn'
+}
+
 const props = defineProps<{
-  /** Page-provided placement callback — see the header contract. */
-  onKeyboardPlace: (icon: IconRef) => void
+  /**
+   * Page-provided placement callback — see the header contract. The label
+   * travels WITH the icon: the panel knows the tile's display name (and
+   * recents carry the placed label), so the page never has to re-derive
+   * it from live search results.
+   */
+  onKeyboardPlace: (icon: IconRef, label: string) => void
   /** Focus the search box on mount and whenever it flips true. */
   autofocus?: boolean
+  /** Visible status chip content; `null` hides it. */
+  notice?: LibraryNotice | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'pick', icon: IconRef): void
   (e: 'upload', payload: { imageDataUrl: string; suggestedLabel: string }): void
 }>()
 
@@ -147,11 +163,14 @@ const tiles = computed(() =>
   })),
 )
 
-/** Click / Enter / Space path: record, announce, hand off to the page. */
+/**
+ * Click / Enter / Space path: hand the pick to the page with its label.
+ * The page performs the placement, records the recents entry (one record
+ * per placement — drops come back through notePlaced) and reports the
+ * outcome via the `notice` prop.
+ */
 function activate(icon: IconRef, label: string): void {
-  recordRecent({ icon, label })
-  emit('pick', icon)
-  props.onKeyboardPlace(icon)
+  props.onKeyboardPlace(icon, label)
 }
 
 // --- States (mirrors v1 IconBrowser: skeleton, quiet retry-able error, empty) ---
@@ -349,6 +368,15 @@ async function onFileChosen(event: Event): Promise<void> {
       tabindex="-1"
       @change="onFileChosen"
     >
+
+    <!-- Visible placement feedback (chip; aria-hidden because the page's
+         live region already announces these outcomes to screen readers). -->
+    <p
+      v-if="notice !== null && notice !== undefined"
+      class="place-note"
+      :class="notice.tone"
+      aria-hidden="true"
+    >{{ notice.message }}</p>
   </section>
 </template>
 
@@ -359,6 +387,7 @@ async function onFileChosen(event: Event): Promise<void> {
  * composable's reset stays available for the add-flow via the script.
  */
 .library {
+  position: relative; /* anchors the placement-feedback chip */
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -600,6 +629,39 @@ select.inp:disabled {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/*
+ * Placement feedback chip — floating pill at the panel's foot (matches the
+ * canvas-alert language). Two tones: a placed pick/photo (positive) and a
+ * refused action — grid full (warning). Hidden from AT (aria-hidden): the
+ * page's role=status live region announces the same outcomes.
+ */
+.place-note {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: 0 2px 10px rgba(19, 23, 17, 0.14);
+  pointer-events: none;
+}
+
+.place-note.ok {
+  background: var(--pill-positive-bg);
+  color: var(--pill-positive-fg);
+}
+
+.place-note.warn {
+  background: var(--pill-warning-bg);
+  color: var(--pill-warning-fg);
 }
 
 @media (prefers-reduced-motion: reduce) {

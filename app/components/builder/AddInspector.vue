@@ -68,9 +68,16 @@ defineExpose({ focusSearch })
  * This panel may be the only search surface mounted (bottom-sheet flow), so
  * it owns the catalog bootstrap: registry first, then the active bundle set
  * if nobody has loaded one yet — same contract as the v1 word picker.
+ *
+ * The results LIST is shared with the library drawer (one catalog store),
+ * so this panel never resets it on mount: with both panels docked they are
+ * visible side by side and must show the same results for the same query.
+ * Instead the field mirrors the store's current query (selected, so the
+ * first keystroke replaces it), and only a genuinely cold store gets its
+ * first set loaded.
  */
 onMounted(() => {
-  catalog.search('')
+  searchText.value = catalog.query
   void catalog.ensureSets().then(() => {
     if (!catalog.activeSetIsOnline && catalog.activeSet !== null && catalog.activeIndex === null) {
       return catalog.selectSet(catalog.activeSetPrefix)

@@ -42,14 +42,13 @@ import { useExport } from '~/composables/useExport'
 import { useRecents } from '~/composables/useRecents'
 import { LIBRARY_PLACE_EVENT } from '~/composables/useCellDrag'
 import type { LibraryPlaceDetail } from '~/composables/useCellDrag'
-import { libraryDisplayName } from '~/composables/useLibrarySearch'
+import type { LibraryNotice } from '~/components/builder/LibraryPanel.vue'
 import { isCellEmpty, nextEmptyCellIndex } from '~/utils/doc-reducers'
 import { PAGE_PRESETS, formatMm } from '~/utils/page-presets'
 import type { IconRef, IconSetMeta } from '~/types/icons'
 
 const chart = useChartStore()
-const catalog = useCatalogStore()
-// The builder-wide recents singleton: placements recorded through the page
+const catalog = useCatalogStore()// The builder-wide recents singleton: placements recorded through the page
 // (this module) surface on every recents strip and persist across reloads.
 const { record: recordRecent } = useRecents()
 
@@ -129,6 +128,24 @@ function announce(message: string): void {
   void nextTick(() => {
     announcement.value = message
   })
+}
+
+/**
+ * Visible placement feedback for the library panel (the chip): same news
+ * the live region carries, shown to every user. Auto-clears after 4s so
+ * stale news never lingers into unrelated work; opening the drawer
+ * resets it for a clean slate.
+ */
+const libraryNotice = ref<LibraryNotice | null>(null)
+let noticeTimer: ReturnType<typeof setTimeout> | null = null
+
+function showLibraryNotice(message: string, tone: LibraryNotice['tone'] = 'ok'): void {
+  libraryNotice.value = { message, tone }
+  if (noticeTimer !== null) clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => {
+    noticeTimer = null
+    libraryNotice.value = null
+  }, 4000)
 }
 
 /** Template applies replace the doc wholesale — the own announcement wins. */
@@ -237,19 +254,8 @@ interface LibraryPanelExpose {
 const libraryPanel = ref<LibraryPanelExpose | null>(null)
 
 /**
- * Keyboard/click picks carry only the IconRef (panel's frozen contract);
- * recover the tile's display label from the live catalog results.
+ * Where a fresh pick lands: asking → selected empty → first empty (mockup).
  */
-function labelForIcon(icon: IconRef): string {
-  const entry = catalog.results.find((row) => {
-    const ref = catalog.refFor(row)
-    return ref.source === icon.source && ref.set === icon.set && ref.name === icon.name
-  })
-  if (entry !== undefined) return libraryDisplayName(entry, catalog.activeSetIsOnline)
-  return icon.source === 'bundle' ? icon.name.replaceAll('-', ' ') : icon.name
-}
-
-/** Where a fresh pick lands: asking → selected empty → first empty (mockup). */
 function firstPlaceableIndex(): number | null {
   const asking = chart.askingCellIndex
   if (asking !== null) return asking
@@ -261,10 +267,16 @@ function firstPlaceableIndex(): number | null {
   return nextEmptyCellIndex(chart.doc, -1)
 }
 
+/** Below the library dock breakpoint (1080px) the drawer covers the sheet. */
+function isLibraryDrawerViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 1079.98px)').matches
+}
+
 function placeLibraryPick(icon: IconRef, label: string): void {
   const index = firstPlaceableIndex()
   if (index === null) {
     announce('The grid is full — add rows or columns first.')
+    showLibraryNotice('The grid is full — add rows or columns first.', 'warn')
     return
   }
   const cell = chart.doc.cells[index]
@@ -272,16 +284,24 @@ function placeLibraryPick(icon: IconRef, label: string): void {
   chart.setCell(index, { ...cell, icon, label })
   chart.askNextAfter(index) // mockup: pick advances to the next empty card
   recordRecent({ icon, label }) // ALL placement paths keep the strip current
+  showLibraryNotice(`Placed “${label}” · Card ${index + 1} of ${chart.doc.cells.length}`)
+  // Bulk flow: the drawer stays open so more tiles can be placed. But once
+  // the grid is full there is nothing left to pick for — below the dock
+  // breakpoint, close it so the finished sheet is visible.
+  if (nextEmptyCellIndex(chart.doc, -1) === null && isLibraryDrawerViewport()) {
+    libraryOpen.value = false
+  }
 }
 
-function onKeyboardPlace(icon: IconRef): void {
-  placeLibraryPick(icon, labelForIcon(icon))
+function onKeyboardPlace(icon: IconRef, label: string): void {
+  placeLibraryPick(icon, label)
 }
 
 function onLibraryUpload(payload: { imageDataUrl: string; suggestedLabel: string }): void {
   const index = firstPlaceableIndex()
   if (index === null) {
     announce('The grid is full — add rows or columns first.')
+    showLibraryNotice('The grid is full — add rows or columns first.', 'warn')
     return
   }
   const cell = chart.doc.cells[index]
@@ -289,6 +309,10 @@ function onLibraryUpload(payload: { imageDataUrl: string; suggestedLabel: string
   const label = cell.label.trim() !== '' ? cell.label : payload.suggestedLabel
   chart.setCell(index, { ...cell, icon: null, label, imageDataUrl: payload.imageDataUrl })
   chart.askNextAfter(index)
+  showLibraryNotice(`Photo added · Card ${index + 1} of ${chart.doc.cells.length}`)
+  // Uploads are one-shot (no bulk picking to preserve): below the dock
+  // breakpoint close the drawer so the user sees the photo land.
+  if (isLibraryDrawerViewport()) libraryOpen.value = false
 }
 
 /**
@@ -305,8 +329,10 @@ function onCellPlace(event: Event): void {
   if (isCellEmpty(cell)) {
     chart.setCell(index, { ...cell, icon: payload.icon, label: payload.label })
     chart.askNextAfter(index)
+    showLibraryNotice(`Placed “${payload.label}” · Card ${index + 1} of ${chart.doc.cells.length}`)
   } else {
     chart.setCell(index, { ...cell, icon: payload.icon, imageDataUrl: undefined })
+    showLibraryNotice('Picture replaced')
   }
   libraryPanel.value?.notePlaced(payload.icon, payload.label)
 }
@@ -321,6 +347,7 @@ watch(gridRegionEl, (element, previous) => {
 
 onBeforeUnmount(() => {
   gridRegionEl.value?.removeEventListener(LIBRARY_PLACE_EVENT, onCellPlace)
+  if (noticeTimer !== null) clearTimeout(noticeTimer)
 })
 
 // --- template apply (one discrete undo step, owned by the store) ------------
@@ -409,6 +436,7 @@ let inspectorTrigger: HTMLElement | null = null
  */
 watch(libraryOpen, (open) => {
   if (open) {
+    libraryNotice.value = null // fresh drawer, clean slate for the chip
     libraryTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
     return
   }
@@ -464,6 +492,7 @@ onBeforeUnmount(() => {
       <template #library>
         <LibraryPanel
           ref="libraryPanel"
+          :notice="libraryNotice"
           :on-keyboard-place="onKeyboardPlace"
           @upload="onLibraryUpload"
         />
