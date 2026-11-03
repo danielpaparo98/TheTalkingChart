@@ -280,6 +280,17 @@
     visibility: hidden;
   }
 
+  /* Builder UI state never prints: a card left selected when Ctrl/Cmd+P
+     fires must not carry its mint selection ring onto paper. (The export
+     path neutralises the same ring in its capture clone — useExport's
+     prepareCloneForCapture.) !important is deliberate: GridCell's scoped
+     `.cell.is-selected[data-v]` rule TIES this selector's specificity and
+     sits LATER in the cascade (entry CSS loads before component styles),
+     so a plain declaration would lose the tie and keep printing the ring. */
+  [data-print-page] .cell.is-selected {
+    box-shadow: none !important;
+  }
+
   /* Pastel tints, the mint keyword block and card colours survive — no
      browser print economising anywhere inside the sheets. */
   [data-print-page],
