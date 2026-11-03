@@ -240,7 +240,7 @@ function onPlaced(event: { message: string }): void {
     place-items: center;
     border: none;
     background: none;
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     color: var(--muted);
     cursor: pointer;
     transition: background-color 100ms ease, color 100ms ease;

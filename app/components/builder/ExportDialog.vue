@@ -381,7 +381,7 @@ onScopeDispose(() => {
   padding: 24px 26px 26px;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-panel, 14px);
   font-family: var(--font-text);
   animation: dialog-in 200ms ease;
 }
@@ -450,7 +450,7 @@ onScopeDispose(() => {
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -477,7 +477,7 @@ onScopeDispose(() => {
   width: 100%;
   padding: 10px 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: var(--paper);
   color: var(--ink);
   font: inherit;

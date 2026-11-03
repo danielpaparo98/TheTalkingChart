@@ -266,7 +266,7 @@ function applyTemplate(descriptor: TemplateDescriptor): void {
   overflow-y: auto;
   padding: 26px 28px 28px;
   background: var(--paper);
-  border-radius: 14px;
+  border-radius: var(--r-panel, 14px);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.4),
     0 36px 72px -24px rgba(0, 0, 0, 0.6);
@@ -370,7 +370,7 @@ function applyTemplate(descriptor: TemplateDescriptor): void {
   text-align: left;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-card, 10px);
   cursor: pointer;
   transition:
     translate 120ms ease,

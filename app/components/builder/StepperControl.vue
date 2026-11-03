@@ -79,7 +79,7 @@ function increment(): void {
     display: grid;
     place-items: center;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     color: var(--text);
     font-size: 15px;

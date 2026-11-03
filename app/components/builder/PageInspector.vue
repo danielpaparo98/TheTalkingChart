@@ -195,7 +195,7 @@ function onTitleInput(event: Event): void {
   .inp {
     width: 100%;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     background: var(--paper);
     font-family: inherit;
     font-size: 13.5px;
@@ -225,7 +225,7 @@ function onTitleInput(event: Event): void {
     background: none;
     font-family: inherit;
     padding: 8px 2px 6px;
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     cursor: pointer;
     transition: background-color 100ms ease;
   }
@@ -264,7 +264,7 @@ function onTitleInput(event: Event): void {
     background: none;
     font-family: inherit;
     padding: 8px 2px 7px;
-    border-radius: 8px;
+    border-radius: var(--r-ctl, 8px);
     font-size: 10.5px;
     font-weight: 500;
     color: var(--muted);

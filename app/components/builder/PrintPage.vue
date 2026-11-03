@@ -206,7 +206,7 @@ if (typeof window !== 'undefined') {
   width: 100%;
   aspect-ratio: var(--page-ratio);
   background: var(--paper);
-  border-radius: 14px; /* theme: sheet 14px */
+  border-radius: var(--r-sheet, 14px); /* theme: sheet 14px */
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.4),
     0 36px 72px -24px rgba(0, 0, 0, 0.6);
@@ -356,6 +356,14 @@ if (typeof window !== 'undefined') {
   }
   .page [data-screen-only] {
     display: none !important;
+  }
+  /* Title policy: the screen keeps the tidy nowrap+ellipsis ticker, but
+     paper must never print "…" — 60 stored chars can exceed one printed
+     line, so the printed title wraps. */
+  .page-title {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: unset;
   }
 }
 </style>

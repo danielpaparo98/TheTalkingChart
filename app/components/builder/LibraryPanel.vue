@@ -410,7 +410,7 @@ async function onFileChosen(event: Event): Promise<void> {
   color: var(--text);
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
 }
 
 /* Placeholder text is real text — plain --muted (6.0:1 on paper), no
@@ -460,7 +460,7 @@ select.inp:disabled {
   line-height: 1.35;
   color: var(--text);
   background: var(--mint-soft);
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
 }
 
 .lib-recents {
@@ -514,7 +514,7 @@ select.inp:disabled {
   color: var(--muted);
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   box-shadow: inset 0 0 0 1.5px var(--line);
   cursor: pointer;
   transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease;
@@ -538,7 +538,7 @@ select.inp:disabled {
 
 .skel {
   height: 58px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: var(--mint-soft);
 }
 
@@ -577,7 +577,7 @@ select.inp:disabled {
   font-variant-numeric: tabular-nums;
   background: var(--paper);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   box-shadow: inset 0 0 0 1px var(--line);
   cursor: pointer;
   transition: background-color 100ms ease, color 100ms ease;

@@ -231,7 +231,7 @@ function onNameEnter(event: KeyboardEvent): void {
   justify-content: center;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -256,7 +256,7 @@ function onNameEnter(event: KeyboardEvent): void {
   flex: 0 1 260px;
   padding: 7px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: transparent;
   color: var(--text);
   font-family: inherit;
@@ -286,7 +286,7 @@ function onNameEnter(event: KeyboardEvent): void {
   gap: 7px;
   padding: 0 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl, 8px);
   background: transparent;
   color: var(--text);
   font-family: inherit;
