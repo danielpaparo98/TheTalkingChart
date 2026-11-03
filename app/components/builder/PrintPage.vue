@@ -36,6 +36,10 @@
  * `hl` field, so the FIRST title word carries the block — matching every
  * approved template (First, Snack, Morning, Animal). This computed is the
  * single point of change if a keyword field ever returns.
+ *
+ * Brand footer: the sheet's foot row carries the inline logo mark +
+ * wordmark (left) beside the slotted attribution (right). Branding rides
+ * every print and export because the capture/print root is this element.
  */
 import { computed, nextTick, onScopeDispose, ref } from 'vue'
 import type { PageSetup } from '~/types/chart'
@@ -184,8 +188,38 @@ if (typeof window !== 'undefined') {
         <slot name="grid" />
       </div>
 
-      <!-- Attribution slot: the ARASAAC credit rides the sheet into print/export. -->
-      <div v-if="$slots.foot" class="page-foot">
+      <!-- Sheet footer: the brand mark + the slotted attribution ride the
+           sheet into print and every export (the capture/print root IS this
+           component). Brand is quiet: muted ink, px-sized to pair with the
+           attribution line at every paper size. -->
+      <div class="page-foot">
+        <span class="brand">
+          <!-- public/logo.svg inlined (print-safe: no external fetch in the
+               capture, and it prints without a network round trip). -->
+          <svg class="brand-mark" viewBox="0 0 341 341" aria-hidden="true">
+            <path
+              d="M85.039,340.157c-46.935,0 -85.039,-38.105 -85.039,-85.039l0,-170.079c0,-46.935 38.105,-85.039 85.039,-85.039l170.079,0c46.935,0 85.039,38.105 85.039,85.039l0,255.118l-255.118,0Z"
+              fill="#9eff9e"
+            />
+            <path
+              d="M215.603,276.455c-11.776,0 -21.337,-9.561 -21.337,-21.337l0,-42.674c0,-11.776 9.561,-21.337 21.337,-21.337l42.674,0c11.776,0 21.337,9.561 21.337,21.337l0,64.011l-64.011,0Z"
+              fill="currentColor"
+            />
+            <path
+              d="M81.881,276.455c-11.776,0 -21.337,-9.561 -21.337,-21.337l0,-42.674c0,-11.776 9.561,-21.337 21.337,-21.337l42.674,0c11.776,0 21.337,9.561 21.337,21.337l0,64.011l-64.011,0Z"
+              fill="currentColor"
+            />
+            <path
+              d="M215.603,149.05c-11.776,0 -21.337,-9.561 -21.337,-21.337l0,-42.674c0,-11.776 9.561,-21.337 21.337,-21.337l42.674,0c11.776,0 21.337,9.561 21.337,21.337l0,64.011l-64.011,0Z"
+              fill="currentColor"
+            />
+            <path
+              d="M81.881,149.05c-11.776,0 -21.337,-9.561 -21.337,-21.337l0,-42.674c0,-11.776 9.561,-21.337 21.337,-21.337l42.674,0c11.776,0 21.337,9.561 21.337,21.337l0,64.011l-64.011,0Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span class="brand-name">The Talking Chart</span>
+        </span>
         <slot name="foot" />
       </div>
     </div>
@@ -333,9 +367,48 @@ if (typeof window !== 'undefined') {
   min-height: 0;
 }
 
+/*
+ * Sheet footer: one flex row — brand mark (left) + slotted attribution
+ * (right). px sizing pairs with the attribution's own px so the row reads
+ * as one unit at every paper size and zoom. print-color-adjust: exact on
+ * the sheet root keeps the mint mark and muted ink on paper.
+ */
 .page-foot {
   flex: none;
   margin-top: 1cqw;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.brand-mark {
+  width: 13px;
+  height: 13px;
+  color: var(--ink);
+  flex: none;
+}
+
+.brand-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* The slotted attribution fills the rest of the row, right-aligned and
+   wrap-safe (its own overflow-wrap:anywhere stays page-owned). */
+.page-foot :slotted(*) {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
 }
 
 /* Reduced motion: the aspect transition dies; reflow becomes instant. */
