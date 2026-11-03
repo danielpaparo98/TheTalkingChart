@@ -30,6 +30,18 @@
  * (`/…/assets/`), not the app's public path. `jspdf` is a normal dynamic
  * import (its bundled transform is fine).
  *
+ * Capture fidelity: html2canvas renders the SCREEN cascade, so the capture
+ * clone is first prepared to read like paper (`prepareCloneForCapture`):
+ * the screen-only affordances the print stylesheet hides
+ * (`[data-screen-only]` — the margin guide and its mm caption, pulse rings,
+ * ask hints, the first-run empty state) are removed from the clone, the
+ * builder's selection ring and the empty cards' dashed ask state are
+ * neutralised (paper hides both), and the title ticker is relaxed to the
+ * print stylesheet's wrap policy. The desk zoom's `.stage` transform is
+ * neutralised around the capture itself — html2canvas measures text bounds
+ * from the transformed live rects and any zoom ≠ 100% mangles wrapped
+ * labels (see `captureSheet`).
+ *
  * Failures never escape as exceptions: every path reports through the
  * `error` ref (UI-facing string) with typed reasons on `ExportError` for
  * programmatic handling.
@@ -242,14 +254,25 @@ export function attributionLine(usedSets: ReadonlyArray<IconSetMeta>, usesArasaa
 // ---------------------------------------------------------------------------
 
 /**
- * Apply the print stylesheet's title relaxation to a capture CLONE (never
- * the live DOM): the screen title is a nowrap+ellipsis ticker, but paper
- * policy (PrintPage's print block) is that 60 stored chars wrap rather
- * than print "…". Both the heading and its inner edit button carry the
- * clip styles on screen (overflow is not inherited), so both are relaxed
- * — exported PNG/PDF then match the printed sheet for long titles.
+ * Prepare a capture CLONE so it renders like paper — this runs on
+ * html2canvas-pro's throwaway iframe document, never the live DOM:
+ *
+ * 1. Title relaxation: the screen title is a nowrap+ellipsis ticker, but
+ *    paper policy (PrintPage's print block) is that 60 stored chars wrap
+ *    rather than print "…". Both the heading and its inner edit button
+ *    carry the clip styles on screen (overflow is not inherited), so both
+ *    are relaxed — exported PNG/PDF match the printed sheet for long titles.
+ * 2. Screen-only affordances: the print stylesheet's `[data-screen-only]`
+ *    hiding is a PRINT-media rule, and html2canvas renders the SCREEN
+ *    cascade — so the dashed margin guide (and its mm caption), pulse
+ *    rings, ask hints and the first-run empty state must be dropped from
+ *    the clone explicitly or they ship in every PNG/PDF.
+ * 3. Builder chrome that paper never shows: the `.cell.is-selected` ring
+ *    (a card that happens to be selected at export time) and the empty
+ *    cards' dashed ask state (main.css's print block hides `.is-empty`)
+ *    are neutralised for the same paper parity.
  */
-function relaxTitleInClone(cloneDoc: Document): void {
+function prepareCloneForCapture(cloneDoc: Document): void {
   const titles = cloneDoc.querySelectorAll<HTMLElement>(
     '[data-print-page] .page-title, [data-print-page] .page-title .title-edit-btn',
   )
@@ -258,16 +281,33 @@ function relaxTitleInClone(cloneDoc: Document): void {
     el.style.whiteSpace = 'normal'
     el.style.textOverflow = 'unset'
   }
+  for (const el of cloneDoc.querySelectorAll<HTMLElement>('[data-screen-only]')) {
+    el.style.display = 'none'
+  }
+  for (const el of cloneDoc.querySelectorAll<HTMLElement>('[data-print-page] .cell.is-selected')) {
+    el.style.boxShadow = 'none'
+  }
+  for (const el of cloneDoc.querySelectorAll<HTMLElement>('[data-print-page] .cell.is-empty')) {
+    el.style.visibility = 'hidden'
+  }
 }
 
 /**
  * Rasterise the print page root to a canvas via html2canvas-pro.
  * The capture is composited on white, so JPEG encoding for the PDF has no
- * transparent pixels to turn black. One targeted `onclone` mutation applies
- * the print stylesheet's title relaxation to the clone — html2canvas
- * renders the SCREEN cascade (nowrap + ellipsis ticker), and without it a
- * long title would be cut off in PNG/PDF exports even though print wraps
- * it. See the module doc block for why the library loads from
+ * transparent pixels to turn black. The `onclone` pass prepares the clone
+ * to read like paper (see {@link prepareCloneForCapture}).
+ *
+ * The desk zoom is a CSS transform on the sheet's ANCESTOR (PrintCanvas's
+ * `.stage`), and html2canvas-pro measures text bounds from the LIVE
+ * element rects — transformed — while laying its clone out untransformed.
+ * Any zoom other than 100% therefore skews every text run (wrapped labels
+ * render as merged words). The stage transform is neutralised for the
+ * duration of the capture and restored afterwards — the same
+ * neutralisation the print stylesheet applies for paper (.stage rules in
+ * main.css). The sheet visibly snaps to its natural size for the ~1.5s
+ * capture; acceptable for an explicit export action.
+ * See the module doc block for why the library loads from
  * `public/vendor/`.
  */
 async function captureSheet(scale: number): Promise<CaptureResult> {
@@ -282,6 +322,15 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
       },
     }
   }
+  const stage = sheet.closest<HTMLElement>('.stage')
+  const priorStageStyle = stage?.getAttribute('style') ?? null
+  if (stage) {
+    stage.style.transform = 'none'
+    stage.style.willChange = 'auto'
+    // Let layout settle so the library's first measurement reads the
+    // untransformed box, not the zoomed one.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  }
   try {
     const baseUrl = useRuntimeConfig().app.baseURL ?? '/'
     const mod = (await import(/* @vite-ignore */ `${baseUrl}vendor/html2canvas-pro.esm.js`)) as {
@@ -292,7 +341,7 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
-      onclone: relaxTitleInClone,
+      onclone: prepareCloneForCapture,
     })
     return { canvas: rebindToLiveDocument(canvas), error: null }
   } catch (cause) {
@@ -304,6 +353,11 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
         message: `Rendering the chart to an image failed (${detail}).`,
         cause,
       },
+    }
+  } finally {
+    if (stage) {
+      if (priorStageStyle === null) stage.removeAttribute('style')
+      else stage.setAttribute('style', priorStageStyle)
     }
   }
 }
