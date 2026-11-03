@@ -242,10 +242,33 @@ export function attributionLine(usedSets: ReadonlyArray<IconSetMeta>, usesArasaa
 // ---------------------------------------------------------------------------
 
 /**
+ * Apply the print stylesheet's title relaxation to a capture CLONE (never
+ * the live DOM): the screen title is a nowrap+ellipsis ticker, but paper
+ * policy (PrintPage's print block) is that 60 stored chars wrap rather
+ * than print "…". Both the heading and its inner edit button carry the
+ * clip styles on screen (overflow is not inherited), so both are relaxed
+ * — exported PNG/PDF then match the printed sheet for long titles.
+ */
+function relaxTitleInClone(cloneDoc: Document): void {
+  const titles = cloneDoc.querySelectorAll<HTMLElement>(
+    '[data-print-page] .page-title, [data-print-page] .page-title .title-edit-btn',
+  )
+  for (const el of titles) {
+    el.style.overflow = 'visible'
+    el.style.whiteSpace = 'normal'
+    el.style.textOverflow = 'unset'
+  }
+}
+
+/**
  * Rasterise the print page root to a canvas via html2canvas-pro.
- * The capture is plain (no `onclone` mutation) and composited on white, so
- * JPEG encoding for the PDF has no transparent pixels to turn black.
- * See the module doc block for why the library loads from `public/vendor/`.
+ * The capture is composited on white, so JPEG encoding for the PDF has no
+ * transparent pixels to turn black. One targeted `onclone` mutation applies
+ * the print stylesheet's title relaxation to the clone — html2canvas
+ * renders the SCREEN cascade (nowrap + ellipsis ticker), and without it a
+ * long title would be cut off in PNG/PDF exports even though print wraps
+ * it. See the module doc block for why the library loads from
+ * `public/vendor/`.
  */
 async function captureSheet(scale: number): Promise<CaptureResult> {
   const sheet = document.querySelector<HTMLElement>(PRINT_PAGE_SELECTOR)
@@ -269,6 +292,7 @@ async function captureSheet(scale: number): Promise<CaptureResult> {
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
+      onclone: relaxTitleInClone,
     })
     return { canvas: rebindToLiveDocument(canvas), error: null }
   } catch (cause) {

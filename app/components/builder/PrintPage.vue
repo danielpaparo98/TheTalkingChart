@@ -251,6 +251,9 @@ if (typeof window !== 'undefined') {
 /*
  * The title: one rule, two states. The view is a heading; the editor is an
  * input with the exact same box, so swapping never shifts the grid.
+ * Centered per the approved v1 builder mockup (mockup-builder.html
+ * .sheet-title { text-align: center }) — inputs and the inner edit button
+ * inherit text-align, so all three states share the alignment.
  */
 .page-title {
   flex: none;
@@ -262,6 +265,7 @@ if (typeof window !== 'undefined') {
   letter-spacing: -0.01em;
   line-height: 1.15;
   color: var(--ink);
+  text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -359,8 +363,12 @@ if (typeof window !== 'undefined') {
   }
   /* Title policy: the screen keeps the tidy nowrap+ellipsis ticker, but
      paper must never print "…" — 60 stored chars can exceed one printed
-     line, so the printed title wraps. */
-  .page-title {
+     line, so the printed title wraps. The inner edit BUTTON re-asserts
+     nowrap + overflow:hidden on the screen (it is the ticker's clip
+     element), so it must be relaxed with the heading or the paper title
+     would still be cut off inside it (overflow is not inherited). */
+  .page-title,
+  .page-title .title-edit-btn {
     overflow: visible;
     white-space: normal;
     text-overflow: unset;
