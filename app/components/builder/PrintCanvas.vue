@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * PrintCanvas — the builder's desk region (approved "Poster Desk"): dark
- * band surround hosting the print-true sheet, with fit default, zoom
- * 50–200% (×1.2 steps), ctrl+wheel/pinch 1:1 zoom and bounded drag-pan
- * once zoomed past fit (approved decision #6).
+ * PrintCanvas — the builder's desk region (light-desk revision of the
+ * "Poster Desk"): a calm light ground hosting the print-true sheet, with
+ * fit default, zoom 50–200% (×1.2 steps), ctrl+wheel/pinch 1:1 zoom and
+ * bounded drag-pan once zoomed past fit (approved decision #6, surround
+ * colour revised by user decision — the near-black band read as a defect).
  *
  * Contracts:
  * - The sheet itself comes from the page via the default slot (PrintPage,
@@ -203,23 +204,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /*
- * Poster Desk tokens (--band/--mint/…) are defined globally (task 15) and
- * referenced, never redefined. The three canvas tints below are band-scoped
- * values taken verbatim from the approved mockup — they exist only on the
- * dark band, so they live here rather than in the global token set.
+ * Poster Desk tokens (--desk/--mint-ink/…) are defined globally (task 15)
+ * and referenced, never redefined. The canvas chrome below is re-skinned
+ * for the LIGHT desk (user-approved revision of the v2 dark band): paper
+ * chip, hairline borders, --muted meta text and --mint-ink accents — the
+ * light mint #a7ff9c reads ~1.2:1 on the desk and fails WCAG 1.4.11 there,
+ * while --mint-ink clears it (9.2:1).
  */
 .canvas {
-  --canvas-dim: #9fb09a;
-  --canvas-chip: rgba(255, 255, 255, .07);
-  --canvas-line: rgba(255, 255, 255, .12);
-
   /* Claim the shell region's definite flex height — everything inside is
      absolutely positioned, so without this the component collapses to 0px,
      ResizeObserver measures 0 and the sheet park at the 10% fit floor. */
   height: 100%;
   position: relative;
   overflow: hidden; /* the desk never scrolls the page or lets the sheet escape */
-  background: var(--band);
+  background: var(--desk);
   user-select: none;
   touch-action: none; /* pan/pinch are ours; touch gestures never scroll the page */
 }
@@ -228,7 +227,7 @@ onBeforeUnmount(() => {
 .canvas.panning { cursor: grabbing; }
 
 .canvas:focus-visible {
-  outline: 2px solid var(--mint);
+  outline: 2px solid var(--mint-ink, var(--ink));
   outline-offset: -2px;
 }
 
@@ -252,7 +251,7 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-/* — zoom pill (mockup: floating chip, top centre) — */
+/* — zoom pill (floating chip, top centre; paper on the light desk) — */
 .zoombar {
   position: absolute;
   top: 14px;
@@ -263,9 +262,9 @@ onBeforeUnmount(() => {
   gap: 2px;
   padding: 4px;
   border-radius: 999px;
-  background: var(--canvas-chip);
-  border: 1px solid var(--canvas-line);
-  backdrop-filter: blur(6px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(19, 23, 17, 0.08);
   z-index: 5;
 }
 
@@ -277,7 +276,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  color: #dfe9da;
+  color: var(--text);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -286,16 +285,16 @@ onBeforeUnmount(() => {
 }
 
 .zoombar button:hover {
-  background: rgba(255, 255, 255, .12);
-  color: #fff;
+  background: var(--active);
+  color: var(--ink);
 }
 
 .zoombar button.fit { padding: 0 12px; }
 
-.zoombar button.fit[aria-pressed="true"] { color: var(--mint); }
+.zoombar button.fit[aria-pressed="true"] { color: var(--mint-ink, var(--ink)); }
 
 .zoombar button:focus-visible {
-  outline: 2px solid var(--mint);
+  outline: 2px solid var(--mint-ink, var(--ink));
   outline-offset: 1px;
 }
 
@@ -304,11 +303,11 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 12px;
   font-weight: 500;
-  color: #dfe9da;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
-/* — status line (mockup: page caption, bottom centre) — */
+/* — status line (page caption, bottom centre) — */
 .canvas-status {
   position: absolute;
   left: 0;
@@ -323,13 +322,13 @@ onBeforeUnmount(() => {
   font-weight: 600;
   letter-spacing: .09em;
   text-transform: uppercase;
-  color: var(--canvas-dim);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
 .canvas-status .dot {
-  color: var(--mint);
+  color: var(--mint-ink, var(--ink));
   font-size: 8px;
 }
 

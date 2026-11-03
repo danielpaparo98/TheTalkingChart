@@ -125,13 +125,14 @@
   --pill-neutral-bg: #e2efdc;
   --pill-neutral-fg: #3a423a;
 
-  /* Poster Desk (builder v2) — design_iterations/theme-boards-v2.html.
-   * The builder components reference these and never define them locally:
-   * the dark band is the canvas surround only, the desk is the light work
-   * ground, and `--line` is the v2 hairline (landing keeps `--border`).
-   * Radii: controls 8 · tiles 8 · cards 10 · sheet 14.
+  /* Poster Desk (builder v2) — design_iterations/theme-boards-v2.html,
+   * surround colour revised by user decision: the near-black band
+   * (#0e120d) read as a broken graphic, especially below the dock
+   * breakpoints where the canvas fills most of the viewport. The desk is
+   * now the light work ground everywhere and `--line` is the v2 hairline
+   * (landing keeps `--border`). Radii: controls 8 · tiles 8 · cards 10 ·
+   * sheet 14.
    */
-  --band: #0e120d;
   --desk: #f4f8f2;
   --line: #e2e8dc;
   /* Dark mint from the approved mockup's private --mint-ink: builder rings,

@@ -3,7 +3,7 @@
  * BuilderShell — the responsive three-region layout of the v2 builder.
  *
  * The shell owns chrome only: a 52px toolbar band, a 300px library dock,
- * a dark-band canvas and a 280px inspector dock. Everything inside the
+ * a light-desk canvas and a 280px inspector dock. Everything inside the
  * regions is slot content assembled by the page (subtask 15) — this file
  * deliberately imports no other builder component.
  *
@@ -242,7 +242,7 @@ function onScrimClick(): void {
   position: relative;
   overflow: hidden;
   min-width: 0;
-  background: var(--band); /* the dark band is the canvas surround ONLY */
+  background: var(--desk); /* light desk ground; the paper sheet floats on it */
 }
 
 .inspector {

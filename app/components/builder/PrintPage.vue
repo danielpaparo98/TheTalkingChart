@@ -241,9 +241,10 @@ if (typeof window !== 'undefined') {
   aspect-ratio: var(--page-ratio);
   background: var(--paper);
   border-radius: var(--r-sheet, 14px); /* theme: sheet 14px */
+  /* Calm paper-on-desk shadow — tuned for the light desk ground. */
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    0 36px 72px -24px rgba(0, 0, 0, 0.6);
+    0 1px 2px rgba(19, 23, 17, 0.10),
+    0 24px 48px -16px rgba(19, 23, 17, 0.22);
   color: var(--ink);
   container-type: inline-size;
   transition: aspect-ratio 200ms ease;
