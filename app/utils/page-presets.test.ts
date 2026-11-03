@@ -13,7 +13,6 @@ import {
   formatMm,
   marginMm,
   pageDims,
-  pageRule,
   pageSizeDeclaration,
 } from './page-presets'
 
@@ -66,11 +65,6 @@ describe('page presets', () => {
     expect(pageSizeDeclaration('letter', 'portrait')).toBe('size: 215.9mm 279.4mm')
     expect(pageSizeDeclaration('a5', 'landscape')).toBe('size: 210mm 148mm')
     expect(pageSizeDeclaration('a3', 'portrait')).toBe('size: 297mm 420mm')
-  })
-
-  test('page rule wraps the size declaration for the managed style tag', () => {
-    expect(pageRule('a4', 'portrait')).toBe('@page { size: 210mm 297mm }')
-    expect(pageRule('letter', 'landscape')).toBe('@page { size: 279.4mm 215.9mm }')
   })
 
   test('label size steps mirror the approved mockup (sheet-relative cqw)', () => {

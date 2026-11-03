@@ -9,8 +9,11 @@
  *
  * Reducers never stamp `updatedAt` or `usesArasaac` and never touch the
  * clock — the store's single mutation path does that. Interaction-boundary
- * inputs (steppers) are clamped; persistence-boundary payloads (`toChartDoc`)
- * are strictly validated, because localStorage content is untrusted.
+ * inputs (steppers) are clamped. Persistence-boundary payloads (`toChartDoc`)
+ * run strict-on-core / repair-on-values: the core structure (title,
+ * updatedAt, the pageSetup/grid/cells containers) must be intact or the
+ * payload is rejected, while repairable field values are clamped, minted or
+ * dropped so a single bad field can never sink a saved chart.
  */
 
 import type {
@@ -24,6 +27,7 @@ import type {
 } from '../types/chart'
 import type { IconRef } from '../types/icons'
 import { PAGE_PRESETS } from './page-presets'
+import { MAX_UPLOAD_DATA_URL_BYTES, dataUrlBytes } from './upload-image'
 
 /** Grid stepper ranges, transcribed from the approved mockup (rows 1–8, cols 1–10, gap 0–24mm). */
 export const GRID_LIMITS = {
@@ -35,7 +39,10 @@ export const GRID_LIMITS = {
   maxGapMm: 24,
 } as const
 
-/** Cell ids follow the templates.ts pattern: UUID when available, monotonic fallback otherwise. */
+/**
+ * Cell ids: UUID when available, monotonic datetime fallback otherwise.
+ * This is the ONE id scheme — templates.ts imports the same generator.
+ */
 let cellCounter = 0
 
 export function createCellId(): string {
@@ -45,6 +52,9 @@ export function createCellId(): string {
   cellCounter += 1
   return `cell-${Date.now().toString(36)}-${cellCounter}`
 }
+
+/** Card label ceiling — the reader AND `setLabel` both cap to it (N-3). */
+export const MAX_LABEL_CHARS = 60
 
 export function createEmptyCell(): CellData {
   return { id: createCellId(), icon: null, label: '' }
@@ -62,6 +72,7 @@ export function isCellEmpty(cell: CellData): boolean {
 /** Structural copy — undo snapshots and template application must not alias reactive state. */
 export function cloneDoc(source: ChartDoc): ChartDoc {
   return {
+    version: source.version,
     title: source.title,
     pageSetup: { ...source.pageSetup },
     grid: { ...source.grid },
@@ -86,7 +97,7 @@ function replaceCell(doc: ChartDoc, index: number, patch: (cell: CellData) => Ce
 }
 
 /** Pad (or trim) a cell list to `count` positions, keeping content positionally. */
-function fitCells(cells: CellData[], count: number): CellData[] {
+export function fitCells(cells: CellData[], count: number): CellData[] {
   if (cells.length === count) return cells
   if (cells.length > count) return cells.slice(0, count)
   return [...cells, ...Array.from({ length: count - cells.length }, () => createEmptyCell())]
@@ -106,7 +117,10 @@ export function setCell(doc: ChartDoc, index: number, cell: CellData): ChartDoc 
 }
 
 export function setLabel(doc: ChartDoc, index: number, label: string): ChartDoc {
-  return replaceCell(doc, index, (cell) => (cell.label === label ? cell : { ...cell, label }))
+  // Cap at the boundary, not in the UI: drag/keyboard/drop label paths (and
+  // pastes) all land here, so nothing can mint an oversized stored label.
+  const capped = label.slice(0, MAX_LABEL_CHARS)
+  return replaceCell(doc, index, (cell) => (cell.label === capped ? cell : { ...cell, label: capped }))
 }
 
 export function setTint(doc: ChartDoc, index: number, color: string | null): ChartDoc {
@@ -265,12 +279,7 @@ function clampCount(value: number, fallback: number, min: number, max: number): 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
-
 /** Grid dimension for a STORED payload: strict integers within the approved ranges. */
-function isStoredDim(value: unknown, min: number, max: number): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
-}
-
 function toIconRef(value: unknown): IconRef | null {
   if (!isRecord(value)) return null
   if (value.source !== 'bundle' && value.source !== 'arasaac') return null
@@ -286,23 +295,40 @@ function toCellData(value: unknown): CellData | null {
   const cell: CellData = {
     id: value.id,
     icon: toIconRef(value.icon),
-    label: typeof value.label === 'string' ? value.label : '',
+    label: (typeof value.label === 'string' ? value.label : '').slice(0, MAX_LABEL_CHARS),
   }
   if (typeof value.color === 'string') cell.color = value.color
   if (value.textOnly === true) cell.textOnly = true
   if (typeof value.imageDataUrl === 'string' && value.imageDataUrl.startsWith('data:image/')) {
-    cell.imageDataUrl = value.imageDataUrl
+    // An upload over the storage budget is DROPPED, not rejected — one huge
+    // photo must not sink the whole chart (same repair philosophy as below).
+    if (dataUrlBytes(value.imageDataUrl) <= MAX_UPLOAD_DATA_URL_BYTES) {
+      cell.imageDataUrl = value.imageDataUrl
+    }
   }
   return cell
 }
 
+/** Stored numeric field → finite number; junk falls back to the caller's pick. */
+function asStoredNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
 /**
- * Validate an untrusted localStorage payload into a v2 doc; `null` means the
- * payload is not a v2 chart at all (caller starts fresh and overwrites).
- * Core structure must be intact or the payload is rejected; cell-level
- * damage is repaired IN PLACE (bad entries become empty cells, the list is
- * trimmed/padded to the grid) so neighbouring content never shifts.
- * `usesArasaac` is always recomputed — the stored flag is never trusted.
+ * Repair a stored payload into a v2 doc; `null` means the payload is not a
+ * chart at all (caller starts fresh and overwrites). STRICT ON CORE,
+ * REPAIR-ON-VALUES, so a single bad field can never sink a saved chart:
+ * - rejected: title/updatedAt not valid, or pageSetup/grid/cells not the
+ *   right container shape (structurally broken — the caller overwrites);
+ * - repaired: unknown preset/orientation/marginPreset/labelSize fall back
+ *   ('a4'/'portrait'/'normal'/'m'), rows/cols/gap clamp into GRID_LIMITS,
+ *   oversized cell arrays are TRIMMED BEFORE per-entry work (a 10⁶-entry
+ *   payload can neither stall nor blow the read), malformed entries become
+ *   empties in place, duplicate ids keep the position and mint a fresh id,
+ *   labels cap at MAX_LABEL_CHARS and over-budget uploads are dropped;
+ * - a missing or unknown `version` never rejects — the reader is lenient
+ *   and the returned doc always carries `version: 2`.
+ * `usesArasaac` is recomputed — the stored flag is never trusted.
  */
 export function toChartDoc(value: unknown): ChartDoc | null {
   if (!isRecord(value)) return null
@@ -311,35 +337,45 @@ export function toChartDoc(value: unknown): ChartDoc | null {
 
   const setup = value.pageSetup
   if (!isRecord(setup)) return null
-  if (!isPagePreset(setup.preset)) return null
-  if (!isOrientation(setup.orientation)) return null
-  if (!isMarginPreset(setup.marginPreset)) return null
-
   const grid = value.grid
   if (!isRecord(grid)) return null
-  const rows: unknown = grid.rows
-  if (!isStoredDim(rows, GRID_LIMITS.minRows, GRID_LIMITS.maxRows)) return null
-  const cols: unknown = grid.cols
-  if (!isStoredDim(cols, GRID_LIMITS.minCols, GRID_LIMITS.maxCols)) return null
-  if (
-    typeof grid.gap !== 'number' ||
-    !Number.isFinite(grid.gap) ||
-    grid.gap < GRID_LIMITS.minGapMm ||
-    grid.gap > GRID_LIMITS.maxGapMm
-  ) {
-    return null
-  }
-  if (!isLabelSize(grid.labelSize)) return null
   if (!Array.isArray(value.cells)) return null
 
-  const cells = fitCells(
-    value.cells.map((entry) => toCellData(entry) ?? createEmptyCell()),
-    rows * cols,
-  )
+  const rows = clampCount(asStoredNumber(grid.rows, GRID_LIMITS.minRows), GRID_LIMITS.minRows, GRID_LIMITS.minRows, GRID_LIMITS.maxRows)
+  const cols = clampCount(asStoredNumber(grid.cols, GRID_LIMITS.minCols), GRID_LIMITS.minCols, GRID_LIMITS.minCols, GRID_LIMITS.maxCols)
+  const count = rows * cols
+
+  // Trim FIRST; per-entry work stays O(count) regardless of payload size.
+  // Array.from also densifies holes (a length-patched stored array) into empties.
+  const base = Array.from(value.cells.slice(0, count), (entry) => toCellData(entry) ?? createEmptyCell())
+
+  // Duplicate-id repair: collisions keep the position and mint a fresh id,
+  // so cell ids stay unique without moving or losing any content.
+  const seenIds = new Set<string>()
+  const cells = fitCells(base, count).map((cell) => {
+    if (seenIds.has(cell.id)) {
+      const id = createCellId()
+      seenIds.add(id)
+      return { ...cell, id }
+    }
+    seenIds.add(cell.id)
+    return cell
+  })
+
   return {
+    version: 2,
     title: value.title,
-    pageSetup: { preset: setup.preset, orientation: setup.orientation, marginPreset: setup.marginPreset },
-    grid: { rows, cols, gap: grid.gap, labelSize: grid.labelSize },
+    pageSetup: {
+      preset: isPagePreset(setup.preset) ? setup.preset : 'a4',
+      orientation: isOrientation(setup.orientation) ? setup.orientation : 'portrait',
+      marginPreset: isMarginPreset(setup.marginPreset) ? setup.marginPreset : 'normal',
+    },
+    grid: {
+      rows,
+      cols,
+      gap: clampCount(asStoredNumber(grid.gap, GRID_LIMITS.minGapMm), GRID_LIMITS.minGapMm, GRID_LIMITS.minGapMm, GRID_LIMITS.maxGapMm),
+      labelSize: isLabelSize(grid.labelSize) ? grid.labelSize : 'm',
+    },
     cells,
     // Recompute from the restored cells — attribution must not outlive the pictograms it credits.
     usesArasaac: cells.some((cell) => cell.icon?.source === 'arasaac'),

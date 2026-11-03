@@ -2,12 +2,27 @@
  * Upload pipeline for device photos → `cell.imageDataUrl` (design decision #9).
  *
  * A photo is read as a data URL, decoded, re-encoded on a canvas fitted to
- * ≤512px, and stored as a WebP/JPEG data URL so it survives the localStorage
- * doc budget. The decision logic (dimension fit, mime choice, budget math,
- * label derivation) lives in pure exported functions covered by vitest;
- * the FileReader/canvas steps are thin no-throw wrappers that mirror the
- * house "typed outcome, never throws" contract.
+ * ≤512px, and stored as a WebP/JPEG data URL. TWO guards run at import
+ * time: the 512px edge re-encode and the {@link MAX_UPLOAD_DATA_URL_BYTES}
+ * ceiling checked on the re-encoded result itself (a decorative 512px PNG
+ * can still outgrow the budget) — failures return the friendly, user-safe
+ * message for the caller to surface. The decision logic (accepted types,
+ * dimension fit, mime choice, byte math, label derivation) lives in pure
+ * exported functions covered by vitest; the FileReader/canvas steps are
+ * thin no-throw wrappers that mirror the house "typed outcome, never
+ * throws" contract.
  */
+
+/** Image MIME types accepted — the ONE decision both upload panels share. */
+export const UPLOAD_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
+
+/** The same list as a DOM `accept` attribute value (joined once here). */
+export const UPLOAD_ACCEPT_ATTRIBUTE = UPLOAD_ACCEPTED_TYPES.join(',')
+
+/** True when the file is a picture this pipeline can process. */
+export function isUploadableImage(file: { type: string }): boolean {
+  return (UPLOAD_ACCEPTED_TYPES as readonly string[]).includes(file.type)
+}
 
 /** Longest allowed edge (px) after re-encode — the localStorage budget guard. */
 export const MAX_UPLOAD_EDGE_PX = 512
@@ -155,8 +170,8 @@ function encodeCanvas(canvas: HTMLCanvasElement): string {
  * label from the filename. Never throws; every failure is a typed message.
  */
 export async function fileToImageDataUrl(file: File): Promise<UploadOutcome> {
-  if (!file.type.startsWith('image/')) {
-    return { ok: false, message: 'Choose an image file — JPG, PNG, WebP or GIF.' }
+  if (!isUploadableImage(file)) {
+    return { ok: false, message: 'Choose a PNG, JPEG, WebP or GIF image.' }
   }
   const label = suggestedLabelFromFilename(file.name)
   const read = await readFileAsDataUrl(file)

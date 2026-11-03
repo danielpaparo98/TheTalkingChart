@@ -2,14 +2,16 @@
  * Doc-reducer invariants: every helper is pure and immutable (returns a NEW
  * doc; the input is never touched) and returns the SAME reference on no-op —
  * the store relies on that identity to skip empty undo steps. Boundary
- * validation (`toChartDoc`) must reject structurally-broken payloads and
- * repair cell-level damage positionally without losing neighbours.
+ * repair (`toChartDoc`) is strict on the CORE structure and repair-on-values
+ * elsewhere: trim-first against DoS payloads, duplicate-id minting, label /
+ * upload caps, and clamp migrations for every out-of-range field.
  */
 
 import { describe, expect, test } from 'vitest'
 import type { CellData, ChartDoc, PageSetup } from '../types/chart'
 import {
   GRID_LIMITS,
+  MAX_LABEL_CHARS,
   applyTemplate,
   clearCell,
   cloneDoc,
@@ -133,6 +135,12 @@ describe('setLabel', () => {
     const doc = mkDoc([mkCell('a', 'dog')])
     expect(setLabel(doc, 0, 'dog')).toBe(doc)
     expect(setLabel(doc, 9, 'x')).toBe(doc)
+  })
+
+  test('labels cap at MAX_LABEL_CHARS at the reducer (N-3: covers drags, keys, pastes)', () => {
+    const doc = mkDoc([mkCell('a', '')])
+    const next = setLabel(doc, 0, 'x'.repeat(MAX_LABEL_CHARS + 50))
+    expect(next.cells[0]?.label).toHaveLength(MAX_LABEL_CHARS)
   })
 })
 
@@ -414,10 +422,13 @@ describe('nextEmptyCellIndex', () => {
   })
 })
 
-// --- Boundary validation: localStorage payloads are untrusted ---
+// --- Boundary repair: localStorage payloads are untrusted -------------------
+// Strict on the CORE (title, updatedAt, container shapes); repair-on-values
+// everywhere else, so stored damage never destroys a chart.
 
 describe('toChartDoc', () => {
   const valid = (): ChartDoc => ({
+    version: 2,
     title: 'Saved chart',
     pageSetup: { preset: 'letter', orientation: 'landscape', marginPreset: 'narrow' },
     grid: { rows: 2, cols: 2, gap: 10, labelSize: 'l' },
@@ -429,6 +440,124 @@ describe('toChartDoc', () => {
   test('accepts a valid payload and restores every field', () => {
     const doc = toChartDoc(structuredClone(valid()))
     expect(doc).toEqual(valid())
+  })
+
+  /** Deep patch into an `unknown` shape for malformed-payload tests. */
+  const broken = (patch: (doc: Record<string, unknown>) => void): unknown => {
+    const doc = valid() as unknown as Record<string, unknown>
+    patch(doc)
+    return doc
+  }
+
+  test('rejects non-object payloads', () => {
+    expect(toChartDoc(null)).toBeNull()
+    expect(toChartDoc(undefined)).toBeNull()
+    expect(toChartDoc(42)).toBeNull()
+    expect(toChartDoc('chart')).toBeNull()
+    expect(toChartDoc([])).toBeNull()
+  })
+
+  test('rejects a structurally broken CORE: title, updatedAt, container shapes, cells', () => {
+    expect(toChartDoc(broken((d) => { d.title = 7 }))).toBeNull()
+    expect(toChartDoc(broken((d) => { delete d.updatedAt }))).toBeNull()
+    expect(toChartDoc(broken((d) => { d.updatedAt = Number.NaN }))).toBeNull()
+    expect(toChartDoc(broken((d) => { d.updatedAt = Number.POSITIVE_INFINITY }))).toBeNull()
+    expect(toChartDoc(broken((d) => { d.pageSetup = 'flat' }))).toBeNull()
+    expect(toChartDoc(broken((d) => { d.grid = 42 }))).toBeNull()
+    expect(toChartDoc(broken((d) => { d.cells = 'nope' }))).toBeNull()
+  })
+
+  test('clamp migrations: out-of-range setup values fall back, never reject (C-4)', () => {
+    expect(toChartDoc(broken((d) => { (d.pageSetup as Record<string, unknown>).preset = 'a9' }))?.pageSetup)
+      .toEqual({ preset: 'a4', orientation: 'landscape', marginPreset: 'narrow' })
+    expect(toChartDoc(broken((d) => { (d.pageSetup as Record<string, unknown>).orientation = 'sideways' }))?.pageSetup.orientation)
+      .toBe('portrait')
+    expect(toChartDoc(broken((d) => { (d.pageSetup as Record<string, unknown>).marginPreset = 'huge' }))?.pageSetup.marginPreset)
+      .toBe('normal')
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).labelSize = 'xl' }))?.grid.labelSize)
+      .toBe('m')
+  })
+
+  test('clamp migrations: rows/cols/gap clamp into GRID_LIMITS (junk → min)', () => {
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).rows = 9 }))?.grid.rows)
+      .toBe(GRID_LIMITS.maxRows)
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).rows = 0 }))?.grid.rows)
+      .toBe(GRID_LIMITS.minRows)
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).cols = 11 }))?.grid.cols)
+      .toBe(GRID_LIMITS.maxCols)
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).cols = 1.5 }))?.grid.cols)
+      .toBe(1) // truncates
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).gap = 25 }))?.grid.gap)
+      .toBe(GRID_LIMITS.maxGapMm)
+    expect(toChartDoc(broken((d) => { (d.grid as Record<string, unknown>).gap = -1 }))?.grid.gap)
+      .toBe(GRID_LIMITS.minGapMm)
+    const junky = broken((d) => { (d.grid as Record<string, unknown>).rows = 'lots' })
+    const repaired = toChartDoc(junky)
+    expect(repaired?.grid.rows).toBe(GRID_LIMITS.minRows)
+    expect(repaired?.cells).toHaveLength(GRID_LIMITS.minRows * 2) // count follows the clamped grid
+  })
+
+  test('trim-first: a huge stored cells array costs O(rows×cols), no DoS (C-1)', () => {
+    // One million junk entries — the reader must slice BEFORE any per-entry
+    // work: only the first rows×cols entries are ever converted.
+    const huge = broken((d) => {
+      const entries: unknown[] = []
+      for (let i = 0; i < 1_000_000; i += 1) entries.push({ id: `c${i}`, label: 'x' })
+      d.cells = entries
+    })
+    const doc = toChartDoc(huge)
+    expect(doc?.cells).toHaveLength(4)
+    expect(doc?.cells.map((cell) => cell.id)).toEqual(['c0', 'c1', 'c2', 'c3'])
+    expect(doc?.cells[3]?.label).toBe('x')
+  })
+
+  test('duplicate-id repair: collisions keep the position and mint a fresh id (C-2)', () => {
+    const payload = broken((d) => {
+      d.cells = [mkCell('dup', 'first'), mkCell('dup', 'second'), mkCell('c'), mkCell('d')]
+    })
+    const doc = toChartDoc(payload)
+    expect(doc?.cells[0]?.id).toBe('dup')
+    expect(doc?.cells[1]?.id).not.toBe('dup')
+    expect(doc?.cells[1]?.label).toBe('second')
+    expect(new Set(doc?.cells.map((cell) => cell.id)).size).toBe(4)
+  })
+
+  test('label cap: oversized stored labels slice to MAX_LABEL_CHARS (C-3)', () => {
+    const long = 'a'.repeat(MAX_LABEL_CHARS + 40)
+    const doc = toChartDoc(broken((d) => { d.cells = [mkCell('a', long), mkCell('b'), mkCell('c'), mkCell('d')] }))
+    expect(doc?.cells[0]?.label).toHaveLength(MAX_LABEL_CHARS)
+  })
+
+  test('upload cap: a data URL over the storage budget is dropped, not rejected (C-3)', () => {
+    // 300_000 base64 chars ≈ 225 KB — over the 200 KB ceiling.
+    const oversized = `data:image/webp;base64,${'A'.repeat(300_000)}`
+    const doc = toChartDoc(
+      broken((d) => {
+        d.cells = [mkCell('a', '', { imageDataUrl: oversized }), mkCell('b'), mkCell('c'), mkCell('d')]
+      }),
+    )
+    expect(doc?.cells[0]?.imageDataUrl).toBeUndefined()
+    // A small upload passes untouched.
+    const keeper = toChartDoc(broken((d) => { d.cells = [mkCell('a', '', { imageDataUrl: 'data:image/webp;base64,xx' }), mkCell('b'), mkCell('c'), mkCell('d')] }))
+    expect(keeper?.cells[0]?.imageDataUrl).toBe('data:image/webp;base64,xx')
+  })
+
+  test('version tolerance: missing/unknown/lying versions read fine (C-5)', () => {
+    // Missing version = same-version lenient read.
+    const missing = broken((d) => { delete d.version })
+    const readMissing = toChartDoc(missing)
+    expect(readMissing).not.toBeNull()
+    expect(readMissing?.version).toBe(2) // the reader upgrades its output
+    // A lying/foreign value never rejects on version alone.
+    const lying = broken((d) => { d.version = 99 })
+    expect(toChartDoc(lying)?.version).toBe(2)
+    const nonsense = broken((d) => { d.version = 'x' })
+    expect(toChartDoc(nonsense)?.version).toBe(2)
+  })
+
+  test('every returned doc carries version: 2 — the persisted shape always stamps it (C-5)', () => {
+    expect(toChartDoc(structuredClone(valid()))?.version).toBe(2)
+    expect(toChartDoc(broken((d) => { delete d.version }))?.version).toBe(2)
   })
 
   test('accepts the blank-template shape (empty title)', () => {
@@ -445,37 +574,6 @@ describe('toChartDoc', () => {
     const lyingFalse = valid()
     lyingFalse.usesArasaac = false
     expect(toChartDoc(lyingFalse)?.usesArasaac).toBe(true)
-  })
-
-  test('rejects non-object payloads', () => {
-    expect(toChartDoc(null)).toBeNull()
-    expect(toChartDoc(undefined)).toBeNull()
-    expect(toChartDoc(42)).toBeNull()
-    expect(toChartDoc('chart')).toBeNull()
-    expect(toChartDoc([])).toBeNull()
-  })
-
-  test('rejects a broken core: title, updatedAt, pageSetup, grid, cells', () => {
-    const broken = (patch: (doc: ChartDoc) => void): unknown => {
-      const doc = valid()
-      patch(doc)
-      return doc
-    }
-    expect(toChartDoc(broken((d) => { (d as unknown as Record<string, unknown>).title = 7 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { delete (d as Partial<ChartDoc>).updatedAt }))).toBeNull()
-    expect(toChartDoc(broken((d) => { d.updatedAt = Number.NaN }))).toBeNull()
-    expect(toChartDoc(broken((d) => { d.updatedAt = Number.POSITIVE_INFINITY }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.pageSetup as unknown as Record<string, unknown>).preset = 'a9' }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.pageSetup as unknown as Record<string, unknown>).orientation = 'sideways' }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.pageSetup as unknown as Record<string, unknown>).marginPreset = 'huge' }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).rows = 0 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).rows = 9 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).cols = 11 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).cols = 1.5 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).gap = -1 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).gap = 25 }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d.grid as unknown as Record<string, unknown>).labelSize = 'xl' }))).toBeNull()
-    expect(toChartDoc(broken((d) => { (d as unknown as Record<string, unknown>).cells = 'nope' }))).toBeNull()
   })
 
   test('repairs a cells/grid count mismatch positionally (truncate + pad)', () => {

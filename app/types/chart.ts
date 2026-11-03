@@ -67,6 +67,13 @@ export interface CellData {
 
 /** The full chart document persisted to localStorage (`DOC_STORAGE_KEY_V2`). Must stay serializable. */
 export interface ChartDoc {
+  /**
+   * Schema version, stamped as 2 by every factory and by the restore reader.
+   * Optional (rather than required) so an older payload whose version field
+   * is missing still reads — the reader is lenient about it and upgrades its
+   * own output to 2; it never rejects a doc on the version value alone.
+   */
+  version?: 2
   /** Sheet title rendered above the grid and carried into print/export. */
   title: string
   /** Print-target page settings (paper, orientation, margins). */

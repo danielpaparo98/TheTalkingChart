@@ -35,9 +35,14 @@ export interface RecentsStorage {
   write: (value: string) => void
 }
 
-/** Identity of a pick (label is display-only — renames don't fork entries). */
+/** Identity of a pictogram — source, set and name (label is display-only). */
+export function pictogramId(icon: IconRef): string {
+  return `${icon.source}:${icon.set}:${icon.name}`
+}
+
+/** Identity of a pick (the pictogram key, not the label — renames don't fork entries). */
 export function samePick(a: RecentPick, b: RecentPick): boolean {
-  return a.icon.source === b.icon.source && a.icon.set === b.icon.set && a.icon.name === b.icon.name
+  return pictogramId(a.icon) === pictogramId(b.icon)
 }
 
 /**

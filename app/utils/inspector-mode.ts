@@ -51,7 +51,10 @@ export function deriveInspector(input: InspectorInput): InspectorPlacement {
   const { selectedCellIndex, askingCellIndex, replaceIndex, cells } = input
 
   const replacing = cellAt(cells, replaceIndex)
-  if (replaceIndex !== null && replacing !== null) {
+  // Replace mode targets a FILLED card (it re-pictures it). If the target
+  // vanished or was cleared to empty, replace mode is meaningless — fall
+  // through so the normal asking/selected/page rules decide the mode.
+  if (replaceIndex !== null && replacing !== null && !isCellEmpty(replacing)) {
     return { mode: 'add', targetIndex: replaceIndex, replace: true }
   }
 
