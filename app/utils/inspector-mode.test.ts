@@ -61,6 +61,16 @@ describe('deriveInspector', () => {
     expect(deriveInspector({ ...BASE, askingCellIndex: 1, replaceIndex: 2 }).replace).toBe(true)
   })
 
+  test('a CLEARED replace target falls through (replace needs a filled card)', () => {
+    // replaceIndex on cells[1], which is empty: replace semantics are
+    // meaningless there — the normal selected/asking rules decide instead.
+    expect(deriveInspector({ ...BASE, selectedCellIndex: 0, replaceIndex: 1 })).toEqual({
+      mode: 'card',
+      targetIndex: 0,
+      replace: false,
+    })
+  })
+
   test('dead indices fall through to the next rule (target cell vanished)', () => {
     // Out-of-range replace falls back to the selected empty cell.
     expect(deriveInspector({ ...BASE, selectedCellIndex: 1, replaceIndex: 99 })).toEqual({

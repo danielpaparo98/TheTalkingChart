@@ -3,22 +3,26 @@
  * AddInspector — the inspector's ADD mode: a compact add-a-picture flow.
  * It reuses the catalog store DIRECTLY (it is the compact sibling of
  * LibraryPanel, which stays a separate component): debounced search, a
- * results grid of tiles, session recents, a device-photo upload entry and a
- * hand-over link to the full library.
+ * results grid of tiles, the builder's shared recents strip, a device-photo
+ * upload entry and a hand-over link to the full library.
  *
  * Placement contract with GridCell: `setCell(target)` fills the asking card
  * and `askNextAfter(target)` makes the next empty card ask — GridCell owns
  * the mint pulse on the asking card; this panel only drives selection.
  * Replace mode swaps the picture in place (label kept, upload dropped) and
  * hands selection back to the card editor. Uploads never enter recents —
- * data URLs would bloat session state for pictures that can't repeat.
+ * data URLs would bloat session state for pictures that can't repeat;
+ * library picks record into the useRecents singleton so both strips (panel
+ * + drawer) stay in step and persist. Escape while typing in the search is
+ * consumed HERE (stop propagation) so it clears the field natively instead
+ * of unwinding sheet layers below it.
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useCatalogStore } from '~/stores/catalog'
 import { useChartStore } from '~/stores/chart'
+import { useRecents, pictogramId } from '~/composables/useRecents'
+import { UPLOAD_ACCEPT_ATTRIBUTE, fileToImageDataUrl } from '~/utils/upload-image'
 import type { IconRef, IconSearchEntry } from '~/types/icons'
-import type { RecentPlacement } from '~/utils/recent-placements'
-import { encodeImageFile, labelFromFileName } from '~/utils/upload-encode'
 import IconTile from './IconTile.vue'
 
 const props = defineProps<{
@@ -26,17 +30,17 @@ const props = defineProps<{
   targetIndex: number
   /** Replace mode: swap the picture, keep the card's label. */
   replace: boolean
-  recents: readonly RecentPlacement[]
 }>()
 
 const emit = defineEmits<{
-  (e: 'picked', item: RecentPlacement): void
   (e: 'placed', event: { message: string }): void
   (e: 'browse'): void
 }>()
 
 const store = useChartStore()
 const catalog = useCatalogStore()
+// Builder-wide recents singleton (shared with the library panel).
+const { items: recents, record: recordRecent } = useRecents()
 
 const SEARCH_DEBOUNCE_MS = 200
 
@@ -106,17 +110,18 @@ function placeWith(iconRef: IconRef, label: string): void {
   const cell = store.doc.cells[props.targetIndex]
   if (cell === undefined) return
 
+  recordRecent({ icon: iconRef, label })
+
   if (props.replace) {
     // Swap the picture; the card keeps its word, tint and text-only flag.
     store.setCell(props.targetIndex, { ...cell, icon: iconRef, imageDataUrl: undefined })
     store.selectCell(props.targetIndex) // back to the card editor — no advance
-    emit('picked', { ref: iconRef, label })
     emit('placed', { message: 'Picture replaced.' })
     return
   }
 
-  store.setCell(props.targetIndex, { id: cell.id, icon: iconRef, label })
-  emit('picked', { ref: iconRef, label })
+  // Spread the existing cell like the page's drag path — only icon + label change.
+  store.setCell(props.targetIndex, { ...cell, icon: iconRef, label })
   const next = store.askNextAfter(props.targetIndex)
   emit('placed', {
     message:
@@ -130,8 +135,8 @@ function place(entry: IconSearchEntry): void {
   placeWith(catalog.refFor(entry), displayName(entry))
 }
 
-function placeRecent(item: RecentPlacement): void {
-  placeWith(item.ref, item.label)
+function placeRecent(item: { icon: IconRef; label: string }): void {
+  placeWith(item.icon, item.label)
 }
 
 // --- device-photo upload ---
@@ -149,7 +154,8 @@ async function onUploadChange(event: Event): Promise<void> {
   input.value = '' // allow re-picking the same file after a fix-up
   if (file === undefined) return
 
-  const outcome = await encodeImageFile(file)
+  // One shared pipeline with the library drawer (~/utils/upload-image).
+  const outcome = await fileToImageDataUrl(file)
   if (!outcome.ok) {
     uploadError.value = outcome.message
     return
@@ -158,8 +164,8 @@ async function onUploadChange(event: Event): Promise<void> {
 
   const cell = store.doc.cells[props.targetIndex]
   if (cell === undefined) return
-  const label = cell.label.trim() !== '' ? cell.label : labelFromFileName(file.name)
-  store.setCell(props.targetIndex, { id: cell.id, icon: null, label, imageDataUrl: outcome.dataUrl })
+  const label = cell.label.trim() !== '' ? cell.label : outcome.label
+  store.setCell(props.targetIndex, { ...cell, icon: null, label, imageDataUrl: outcome.dataUrl })
 
   if (props.replace) {
     store.selectCell(props.targetIndex)
@@ -168,6 +174,7 @@ async function onUploadChange(event: Event): Promise<void> {
     store.askNextAfter(props.targetIndex)
     emit('placed', { message: `Photo added to card ${props.targetIndex + 1}.` })
   }
+  // Uploads deliberately never enter recents (see header).
 }
 </script>
 
@@ -190,6 +197,7 @@ async function onUploadChange(event: Event): Promise<void> {
           aria-label="Search pictures"
           autocomplete="off"
           @input="onInput"
+          @keydown.escape.stop
         >
       </div>
       <button type="button" class="upload-link" @click="pickUpload">
@@ -203,7 +211,7 @@ async function onUploadChange(event: Event): Promise<void> {
         ref="uploadEl"
         class="sr-file"
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        :accept="UPLOAD_ACCEPT_ATTRIBUTE"
         tabindex="-1"
         aria-hidden="true"
         @change="onUploadChange"
@@ -247,14 +255,14 @@ async function onUploadChange(event: Event): Promise<void> {
       <div class="rec-row">
         <button
           v-for="item in recents"
-          :key="item.ref.set + ':' + item.ref.name"
+          :key="pictogramId(item.icon)"
           type="button"
           class="rec-tile"
           :aria-label="`Use ${item.label} picture`"
           :title="item.label"
           @click="placeRecent(item)"
         >
-          <IconTile :icon="item.ref" />
+          <IconTile :icon="item.icon" />
         </button>
       </div>
     </div>

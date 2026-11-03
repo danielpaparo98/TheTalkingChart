@@ -7,12 +7,15 @@
  *
  *  - the global keyboard layer — Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z and
  *    Ctrl+Y redo (skipped while typing in fields), and the Escape unwind
- *    export → templates → inspector sheet → library drawer → deselect;
+ *    export → templates → inspector sheet → library drawer → deselect,
+ *    ONE layer per press: this page is the sole owner of the sheet-closing
+ *    layer (the inspector panel adds no Escape of its own);
  *  - the `builder-cell-place` hand-off: GridCell validates a library drop
  *    and dispatches the bubbling CustomEvent `LIBRARY_PLACE_EVENT` with
  *    detail `{ index, payload }` (useCellDrag.emitLibraryPlace); the page
- *    writes the cell and refreshes the library's recents strip through the
- *    panel's exposed `notePlaced` — keeping PageGrid's frozen 5-event leak.
+ *    writes the cell and records the placement through the shared recents
+ *    singleton (both strips show it) — keeping PageGrid's frozen 5-event
+ *    leak.
  *  - screen-reader live announcements (placements, removals, undo/redo) and
  *    focus return for the shell's drawers/sheet (v1 indexes/index pattern).
  *
@@ -36,6 +39,7 @@ import { useChartStore } from '~/stores/chart'
 import { useCatalogStore } from '~/stores/catalog'
 import { usePageSetup } from '~/composables/usePageSetup'
 import { useExport } from '~/composables/useExport'
+import { useRecents } from '~/composables/useRecents'
 import { LIBRARY_PLACE_EVENT } from '~/composables/useCellDrag'
 import type { LibraryPlaceDetail } from '~/composables/useCellDrag'
 import { libraryDisplayName } from '~/composables/useLibrarySearch'
@@ -45,6 +49,9 @@ import type { IconRef, IconSetMeta } from '~/types/icons'
 
 const chart = useChartStore()
 const catalog = useCatalogStore()
+// The builder-wide recents singleton: placements recorded through the page
+// (this module) surface on every recents strip and persist across reloads.
+const { record: recordRecent } = useRecents()
 
 /**
  * Document title tracks the chart title (bookmarks/history/tabs announce the
@@ -264,6 +271,7 @@ function placeLibraryPick(icon: IconRef, label: string): void {
   if (cell === undefined || !isCellEmpty(cell)) return
   chart.setCell(index, { ...cell, icon, label })
   chart.askNextAfter(index) // mockup: pick advances to the next empty card
+  recordRecent({ icon, label }) // ALL placement paths keep the strip current
 }
 
 function onKeyboardPlace(icon: IconRef): void {
@@ -362,8 +370,12 @@ function onKeydown(event: KeyboardEvent): void {
   }
 
   if (event.key !== 'Escape') return
-  // Unwind one layer per press; focus return is handled by the watches below
+  // Unwind ONE layer per press; focus return is handled by the watches below
   // (drawers/sheet) and by the dialogs themselves (their contracts own it).
+  // This page is the SOLE owner of the sheet-closing layer: InspectorPanel
+  // adds no Escape handling of its own (its inner editors stop propagation),
+  // so a card-selected user closes the sheet on one press and deselects on
+  // the next — never both layers in a single press.
   if (exportOpen.value) {
     exportOpen.value = false
     return

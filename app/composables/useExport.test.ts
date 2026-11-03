@@ -68,6 +68,15 @@ describe('fitContain', () => {
   test('taller content is height-fitted and horizontally centred', () => {
     expect(fitContain(100, 200, 100, 100)).toEqual({ x: 25, y: 0, width: 50, height: 100 })
   })
+
+  test('degenerate dims return a finite scale-1 rect — never Infinity', () => {
+    // zero/negative/NaN box or content dims all land on the scale-1 fallback
+    expect(fitContain(0, 297, 420, 594)).toEqual({ x: 0, y: 0, width: 0, height: 297 })
+    expect(fitContain(210, 0, 0, 0)).toEqual({ x: 0, y: 0, width: 210, height: 0 })
+    expect(fitContain(Number.NaN, 297, 420, 594)).toEqual({ x: 0, y: 0, width: 0, height: 297 })
+    expect(fitContain(210, 297, -5, 594)).toEqual({ x: 0, y: 0, width: 210, height: 297 })
+    expect(fitContain(210, 297, 420, Number.POSITIVE_INFINITY)).toEqual({ x: 0, y: 0, width: 210, height: 297 })
+  })
 })
 
 describe('exportFilename', () => {
@@ -209,9 +218,9 @@ describe('useExport composable wiring (pure reactive surface)', () => {
     expect(attribution.value).toBe(`Icons: ${ARASAAC_ATTRIBUTION}`)
   })
 
-  test('legacy title-only options keep working (pre-v2 callers)', () => {
-    const { attribution } = useExport({ title: () => 'Legacy' })
-    expect(attribution.value).toBe('')
+  test('unresolvable prefixes are skipped — licence text is never invented', () => {
+    const { attribution } = useExport({ doc: DOC, resolveSetMeta: () => null })
+    expect(attribution.value).toBe(`Icons: ${ARASAAC_ATTRIBUTION}`)
   })
 
   test('a reactive doc getter drives the attribution reactively', () => {

@@ -11,24 +11,27 @@
  *   ask). Search autofocuses on every entry and between auto-advances.
  * - `card` — a filled card is selected: label, tint, replace, duplicate, clear.
  *
- * Mode switches crossfade the body over 120ms (opacity only; reduced-motion
- * swaps instantly); the header — mode title + close for the bottom-sheet
- * case — never moves. When a target card disappears (cleared/deselected),
- * the derivation re-runs automatically because it reads the reactive store.
- * All document mutations flow through store actions: undoable, coalesced.
+ * Mode switches crossfade the body over 120ms: opacity fades to 0, the new
+ * content swaps in at the ~60ms midpoint, and opacity restores by ~120ms —
+ * a real crossfade, not a fade-then-jump (reduced-motion swaps instantly);
+ * the header — mode title + close for the bottom-sheet case — never moves.
+ * When a target card disappears (cleared/deselected), the derivation
+ * re-runs automatically because it reads the reactive store. All document
+ * mutations flow through store actions: undoable, coalesced.
+ *
+ * ESCAPE belongs to the PAGE (app/pages/app/index.vue): it owns closing the
+ * bottom-sheet/export/templates/drawers one layer per press and ends its
+ * unwind on `askCell(null)+selectCell(null)`. This panel adds NO Escape
+ * handling of its own — the sheet's inner editors (label input, search
+ * field) stop propagation so their own state closes with just one press.
  */
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useChartStore } from '~/stores/chart'
 import { deriveInspector } from '~/utils/inspector-mode'
 import type { InspectorMode, InspectorPlacement } from '~/utils/inspector-mode'
-import { pushRecentPlacement } from '~/utils/recent-placements'
-import type { RecentPlacement } from '~/utils/recent-placements'
 import AddInspector from './AddInspector.vue'
 import CellInspector from './CellInspector.vue'
 import PageInspector from './PageInspector.vue'
-
-/** Approved motion table: inspector context switch = 120ms crossfade. */
-const FADE_MS = 120
 
 const MODE_TITLES: Record<InspectorMode, string> = {
   page: 'Page setup',
@@ -66,14 +69,35 @@ const placement = computed(() =>
   }),
 )
 
-// --- 120ms crossfade: content swaps at the midpoint, header stays put ---
+// --- 120ms crossfade: content swaps mid-fade, header stays put -------------
+//
+// Two-phase per the approved motion table: opacity ease DOWN, the new mode's
+// content is swapped under the half-faded body at the midpoint, then opacity
+// eases back up — so old→new is a true crossfade rather than a fade-out that
+// jumps at the end.
 
 const rendered = ref<InspectorPlacement>({ ...placement.value })
 const fading = ref(false)
-let fadeTimer: ReturnType<typeof setTimeout> | null = null
+/** Total crossfade length (motion-safety table: 120ms, opacity only). */
+const FADE_MS = 120
+/** Midpoint where content swaps (half a fade each side ≈ real crossfade). */
+const FADE_SWAP_MS = FADE_MS / 2
+let swapTimer: ReturnType<typeof setTimeout> | null = null
+let restoreTimer: ReturnType<typeof setTimeout> | null = null
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function clearFadeTimers(): void {
+  if (swapTimer !== null) {
+    clearTimeout(swapTimer)
+    swapTimer = null
+  }
+  if (restoreTimer !== null) {
+    clearTimeout(restoreTimer)
+    restoreTimer = null
+  }
 }
 
 const addRef = ref<InstanceType<typeof AddInspector> | null>(null)
@@ -84,6 +108,7 @@ function focusAddSearch(): void {
   void nextTick(() => addRef.value?.focusSearch())
 }
 
+/** Reduced-motion path: swap content and restore opacity immediately. */
 function swapImmediately(): void {
   rendered.value = { ...placement.value }
   fading.value = false
@@ -94,16 +119,23 @@ watch(
   () => placement.value.mode,
   (next, prev) => {
     if (next === prev) return
+    clearFadeTimers()
     if (prefersReducedMotion()) {
       swapImmediately()
       return
     }
-    if (fadeTimer !== null) clearTimeout(fadeTimer)
     fading.value = true
-    fadeTimer = setTimeout(() => {
-      fadeTimer = null
-      swapImmediately()
-    }, FADE_MS)
+    // Phase 1 (~60ms): swap the content while the body is half-faded.
+    swapTimer = setTimeout(() => {
+      swapTimer = null
+      rendered.value = { ...placement.value }
+      focusAddSearch()
+      // Phase 2 (~120ms): restore opacity for the second half of the fade.
+      restoreTimer = setTimeout(() => {
+        restoreTimer = null
+        fading.value = false
+      }, FADE_SWAP_MS)
+    }, FADE_SWAP_MS)
   },
 )
 
@@ -116,7 +148,7 @@ watch(placement, (next, prev) => {
 })
 
 onUnmounted(() => {
-  if (fadeTimer !== null) clearTimeout(fadeTimer)
+  clearFadeTimers()
 })
 
 /** Numeric props for the mode children; `-1` never renders (children guard). */
@@ -127,34 +159,18 @@ const cardTarget = computed(() =>
   rendered.value.mode === 'card' && rendered.value.targetIndex !== null ? rendered.value.targetIndex : -1,
 )
 
-// --- recents (session-only; owned here to survive mode switches) ---
-
-const recents = ref<RecentPlacement[]>([])
-
-function onPicked(item: RecentPlacement): void {
-  recents.value = pushRecentPlacement(recents.value, item)
-}
-
 // --- quiet announcements for placements/notices (WCAG 4.1.3) ---
+// (Recents live in the useRecents singleton owned by AddInspector/LibraryPanel.)
 
 const announcement = ref('')
 
 function onPlaced(event: { message: string }): void {
   announcement.value = event.message
 }
-
-/** Escape unwinds selection first (dialog-level escapes live above us). */
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Escape') return
-  if (placement.value.mode === 'page') return
-  replaceIndex.value = null
-  store.askCell(null)
-  store.selectCell(null)
-}
 </script>
 
 <template>
-  <aside class="inspector" aria-label="Inspector" @keydown="onKeydown">
+  <aside class="inspector" aria-label="Inspector">
     <header class="insp-head">
       <span class="insp-title" aria-live="polite">{{ MODE_TITLES[rendered.mode] }}</span>
       <button
@@ -177,8 +193,6 @@ function onKeydown(event: KeyboardEvent): void {
         ref="addRef"
         :target-index="addTarget"
         :replace="rendered.replace"
-        :recents="recents"
-        @picked="onPicked"
         @placed="onPlaced"
         @browse="emit('browse')"
       />

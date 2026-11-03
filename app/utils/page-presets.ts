@@ -79,13 +79,11 @@ export function formatMm(value: number): string {
  * `size` declaration for the managed @page rule. A function, not a
  * constant, because custom properties don't work inside @page — the rule
  * must be rebuilt as a literal string whenever page settings change.
+ * The FULL rule (wrapping + `margin: 0`) is `usePageSetup`'s
+ * `pageRuleText()` — this module owns only the size string, so there is
+ * exactly one builder per layer.
  */
 export function pageSizeDeclaration(preset: PagePresetId, orientation: Orientation): string {
   const { widthMm, heightMm } = pageDims(preset, orientation)
   return `size: ${formatMm(widthMm)}mm ${formatMm(heightMm)}mm`
-}
-
-/** Full @page rule ready for the managed style tag. */
-export function pageRule(preset: PagePresetId, orientation: Orientation): string {
-  return `@page { ${pageSizeDeclaration(preset, orientation)} }`
 }

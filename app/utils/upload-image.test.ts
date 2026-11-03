@@ -10,9 +10,11 @@ import { describe, expect, test } from 'vitest'
 
 import {
   MAX_UPLOAD_EDGE_PX,
+  UPLOAD_ACCEPTED_TYPES,
   dataUrlBytes,
   exceedsBudget,
   fitWithinBox,
+  isUploadableImage,
   pickOutputMime,
   suggestedLabelFromFilename,
 } from './upload-image'
@@ -69,6 +71,10 @@ describe('suggestedLabelFromFilename', () => {
   test('strips the extension and trims whitespace', () => {
     expect(suggestedLabelFromFilename('My Dog.JPG')).toBe('My Dog')
     expect(suggestedLabelFromFilename('  spaced.jpg  ')).toBe('spaced')
+    // separator runs become spaces BOTH ways: underscore and hyphen together
+    expect(suggestedLabelFromFilename('my_dog.jpg')).toBe('my dog')
+    expect(suggestedLabelFromFilename('snack-time-photo.webp')).toBe('snack time photo')
+    expect(suggestedLabelFromFilename('  bus.png ')).toBe('bus')
   })
 
   test('turns separator runs into spaces', () => {
@@ -126,5 +132,31 @@ describe('exceedsBudget', () => {
   test('rejects payloads over a custom limit', () => {
     expect(exceedsBudget(TINY, 2)).toBe(true)
     expect(exceedsBudget(TINY, 3)).toBe(false)
+  })
+})
+
+describe('isUploadableImage (one shared type gate for both panels)', () => {
+  test('accepts the supported picture types', () => {
+    for (const type of UPLOAD_ACCEPTED_TYPES) {
+      expect(isUploadableImage({ type })).toBe(true)
+    }
+  })
+
+  test('rejects non-image files', () => {
+    for (const type of [
+      'application/pdf',
+      'video/mp4',
+      'text/plain',
+      'image/tiff', // decodable by some cameras, but outside the shared allow-list
+      '',
+    ]) {
+      expect(isUploadableImage({ type })).toBe(false)
+    }
+  })
+})
+
+describe('MAX_UPLOAD_EDGE_PX', () => {
+  test('the budget cap is 512px (approved decision #9)', () => {
+    expect(MAX_UPLOAD_EDGE_PX).toBe(512)
   })
 })

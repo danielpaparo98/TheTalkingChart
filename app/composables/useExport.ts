@@ -6,11 +6,12 @@
  *   rendered by the v2 print page (v1's `data-chart-sheet` is retired).
  *   PNG/PDF capture locate it via that attribute.
  * - `printChart()` stays a plain `window.print()`: physical size comes from
- *   the dynamically injected `@page { size: … }` rule — built by
- *   `pageSizeDeclaration()`/`pageRule()` in `app/utils/page-presets.ts` and
- *   injected by the page-setup composable (subtask 03; stylesheet wiring
- *   lands with the print tasks, subtask 15). Injection intentionally does
- *   NOT happen here — the managed style tag has exactly one owner.
+ *   the dynamically injected `@page { size: … }` rule — the size string from
+ *   `pageSizeDeclaration()` wrapped into the full rule by `usePageSetup`'s
+ *   `pageRuleText()` and injected by the page-setup composable (subtask 03;
+ *   stylesheet wiring lands with the print tasks, subtask 15). Injection
+ *   intentionally does NOT happen here — the managed style tag has exactly
+ *   one owner.
  * - PNG/PDF dimensions derive from `doc.pageSetup` (paper preset +
  *   orientation) via `pageDims()` — all 8 preset/orientation combinations,
  *   no hardcoded page constants. The PDF page is sized EXACTLY to the doc's
@@ -66,13 +67,6 @@ const PDF_JPEG_QUALITY = 0.95
 const PX_PER_MM = 96 / 25.4
 const PT_PER_MM = 72 / 25.4
 
-/**
- * Page setup bridging pre-v2 callers that don't pass a doc yet (the v1
- * sheet was a fixed A4 landscape). Dimensions still come from page-presets
- * — no v1 numbers live in this module.
- */
-const LEGACY_PAGE_SETUP: PageSetup = { preset: 'a4', orientation: 'landscape', marginPreset: 'normal' }
-
 /** Why an export step failed. Surfaces typed failures without throwing. */
 export type ExportErrorReason = 'missing-sheet' | 'render-failed' | 'encode-failed'
 
@@ -98,14 +92,9 @@ export type ExportableDoc = Pick<ChartDoc, 'title' | 'pageSetup' | 'usesArasaac'
 export interface UseExportOptions {
   /**
    * Live v2 doc (value, ref or getter) — drives page dimensions, export
-   * filenames and the attribution line. Preferred input.
+   * filenames and the attribution line.
    */
-  doc?: MaybeRefOrGetter<ExportableDoc>
-  /**
-   * Legacy v1 title getter, used only when `doc` is absent (pre-v2 callers
-   * during the rebuild window). Ignored when `doc` is provided.
-   */
-  title?: () => string
+  doc: MaybeRefOrGetter<ExportableDoc>
   /**
    * Resolves a bundle set prefix to its licence metadata (catalog store or
    * fallback registry, caller-owned). Unknown prefixes yield `null` and are
@@ -147,8 +136,20 @@ export function mmToPt(mm: number): number {
 /**
  * Largest rectangle that fits `contentW × contentH` inside `boxW × boxH`,
  * centred, aspect ratio preserved (CSS `object-fit: contain` maths).
+ * Degenerate input (zero/negative/NaN content or box dims — nothing real in
+ * the print pipeline, but don't feed Infinity into `pdf.addImage`) returns a
+ * scale-1 rect pinned to the box origin: finite, draw-safe, no permutation.
  */
 export function fitContain(contentW: number, contentH: number, boxW: number, boxH: number): FittedRect {
+  const usable = (value: number): boolean => Number.isFinite(value) && value > 0
+  if (!usable(contentW) || !usable(contentH) || !usable(boxW) || !usable(boxH)) {
+    return {
+      x: 0,
+      y: 0,
+      width: usable(contentW) ? contentW : 0,
+      height: usable(contentH) ? contentH : 0,
+    }
+  }
   const scale = Math.min(boxW / contentW, boxH / contentH)
   const width = contentW * scale
   const height = contentH * scale
@@ -318,7 +319,13 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
-  URL.revokeObjectURL(url)
+  // Safari/iOS cancels the download when the object URL is revoked in the
+  // SAME task as the click — defer the revoke one macrotask. No scope-hook
+  // needed: a page torn down before the macrotask runs simply revokes an
+  // already-dead URL (the click's navigation never depends on it again).
+  setTimeout(() => {
+    URL.revokeObjectURL(url)
+  }, 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -330,17 +337,15 @@ function downloadBlob(blob: Blob, filename: string): void {
  * `[data-print-page]` contract, the @page ownership split and the
  * attribution behaviour.
  */
-export function useExport(options: UseExportOptions = {}) {
+export function useExport(options: UseExportOptions) {
   /** Shared busy flag — true while any PNG/PDF export is running; prevents double submits. */
   const exporting = ref(false)
   /** Message of the most recent failure, or `null` after a successful/clean run. */
   const error = ref<string | null>(null)
 
-  /** The live doc slice: `doc` when provided, else the legacy v1 title bridge. */
+  /** The live doc slice (the required `doc` input). */
   function resolveDoc(): ExportableDoc {
-    const doc = options.doc === undefined ? null : toValue(options.doc)
-    if (doc) return doc
-    return { title: options.title?.() ?? '', pageSetup: LEGACY_PAGE_SETUP, usesArasaac: false, cells: [] }
+    return toValue(options.doc)
   }
 
   /**

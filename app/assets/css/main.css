@@ -247,11 +247,13 @@
 
   /* Pin the sheet to the true page box — whatever paper the injected @page
      rule carries (A4/Letter/A5/A3 × portrait/landscape), never a fixed mm
-     pair, and always edge-to-edge at margin 0. */
+     pair, and always edge-to-edge at margin 0. overflow: clip keeps any
+     runt content inside the one page (print hardening: no spill). */
   [data-print-page] {
     position: fixed !important;
     inset: 0 !important;
     aspect-ratio: auto !important;
+    overflow: clip;
   }
 
   /* The desk zoom sits INLINE on the stage (transform: translate scale) and

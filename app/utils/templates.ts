@@ -7,6 +7,9 @@
  */
 
 import type { CellData, ChartDoc, GridSetup, PageSetup } from '../types/chart'
+// ONE id scheme/counter and ONE cell-list fitter — the shared versions from
+// the doc reducers, never local copies (they must mint ids identically).
+import { createCellId, fitCells } from './doc-reducers'
 
 /**
  * The six approved card tints (Poster Desk palette). Kept next to the
@@ -22,41 +25,18 @@ export const CARD_TINTS = {
   lilac: '#f3e8fd',
 } as const
 
-/** Cell ids follow the v1 store pattern: UUID when available, monotonic fallback otherwise. */
-let cellCounter = 0
-
-function createCellId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  cellCounter += 1
-  return `cell-${Date.now().toString(36)}-${cellCounter}`
-}
-
-function createEmptyCell(): CellData {
-  return { id: createCellId(), icon: null, label: '' }
-}
-
 /** A content card: label + tint; icon stays null until placement is wired. */
 function createCard(label: string, color: string): CellData {
   return { id: createCellId(), icon: null, label, color }
 }
 
-/**
- * Pad (or trim) a card list to the grid's cell count, mirroring the v1
- * store's `fitSlots` semantics so content always stays position-indexed.
- */
-function fillCells(cards: CellData[], count: number): CellData[] {
-  if (cards.length > count) return cards.slice(0, count)
-  return [...cards, ...Array.from({ length: count - cards.length }, () => createEmptyCell())]
-}
-
 function createDoc(title: string, pageSetup: PageSetup, grid: GridSetup, cards: CellData[]): ChartDoc {
   return {
+    version: 2,
     title,
     pageSetup,
     grid,
-    cells: fillCells(cards, grid.rows * grid.cols),
+    cells: fitCells(cards, grid.rows * grid.cols),
     usesArasaac: false,
     updatedAt: Date.now(),
   }

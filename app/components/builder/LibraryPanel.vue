@@ -34,14 +34,15 @@
  * FOCUS: pass `autofocus` (focuses when it flips true — inspector add-flow
  * and drawer opening) or call the exposed `focusSearch()`.
  *
- * Recents are component-level state persisted under `talking-chart-recents-v1`
- * (see useRecents) — never part of the chart document.
+ * Recents are the builder-wide singleton state under
+ * `talking-chart-recents-v1` (see useRecents) — never part of the chart
+ * document, and shared with the inspector's add flow (same list everywhere).
  */
 import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
 import { useCatalogStore } from '~/stores/catalog'
-import { useRecents } from '~/composables/useRecents'
+import { useRecents, pictogramId } from '~/composables/useRecents'
 import { libraryDisplayName, useLibrarySearch } from '~/composables/useLibrarySearch'
-import { fileToImageDataUrl } from '~/utils/upload-image'
+import { UPLOAD_ACCEPT_ATTRIBUTE, fileToImageDataUrl } from '~/utils/upload-image'
 import { ARASAAC_SET_PREFIX } from '~/stores/catalog'
 import LibraryTile from './LibraryTile.vue'
 import type { IconRef, IconSetMeta } from '~/types/icons'
@@ -279,10 +280,7 @@ async function onFileChosen(event: Event): Promise<void> {
     <div v-if="recentItems.length > 0" class="lib-recents">
       <p class="strip-label">Recently used</p>
       <ul class="rec-row" aria-label="Recently used pictures">
-        <li
-          v-for="item in recentItems"
-          :key="item.icon.source + ':' + item.icon.set + ':' + item.icon.name"
-        >
+        <li v-for="item in recentItems" :key="pictogramId(item.icon)">
           <LibraryTile
             compact
             :icon="item.icon"
@@ -346,7 +344,7 @@ async function onFileChosen(event: Event): Promise<void> {
       ref="fileEl"
       class="file-input"
       type="file"
-      accept="image/*"
+      :accept="UPLOAD_ACCEPT_ATTRIBUTE"
       aria-hidden="true"
       tabindex="-1"
       @change="onFileChosen"

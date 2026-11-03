@@ -6,7 +6,8 @@
  * element objects are structural stubs — no DOM environment needed.
  */
 
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi, afterEach } from 'vitest'
+import { effectScope } from 'vue'
 
 import {
   CELL_DRAG_MIME,
@@ -24,9 +25,10 @@ import {
   parseCellDragPayload,
   readCellDragData,
   scheduleSwapFlip,
+  useCellDrop,
 } from './useCellDrag'
-import type { FlipElement, RectLike, SwapFlipOptions } from './useCellDrag'
-import { LIBRARY_DRAG_MIME } from './useLibraryDrag'
+import type { CellDropHooks, FlipElement, RectLike, SwapFlipOptions } from './useCellDrag'
+import { LIBRARY_DRAG_MIME, encodeLibraryDragPayload } from './useLibraryDrag'
 
 const PAYLOAD: { index: number; label: string } = { index: 3, label: 'dog face' }
 
@@ -318,5 +320,220 @@ describe('emitLibraryPlace', () => {
     expect(() => emitLibraryPlace(null, { index: 0, payload: PLACE_PAYLOAD })).not.toThrow()
     expect(() => emitLibraryPlace(undefined, { index: 0, payload: PLACE_PAYLOAD })).not.toThrow()
     expect(() => emitLibraryPlace({}, { index: 0, payload: PLACE_PAYLOAD })).not.toThrow()
+  })
+})
+
+// --- useCellDrop: per-cell drop-target state machine ------------------------
+// Node-safe stub style (same as the suites above): structural DataTransfer /
+// element stubs, plus scoped global stubs (`window` for the FLIP scheduler,
+// `Node` for relatedTarget instanceof checks) that never leak between tests.
+
+describe('useCellDrop (drop/target side)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearCellDragSource()
+  })
+
+  /** Structural event stub — only what the handlers touch. */
+  function eventData(transfer: Partial<DataTransfer> | null, currentTarget: unknown = null, relatedTarget: Node | null = null): DragEvent {
+    return {
+      dataTransfer: (transfer ?? null) as DataTransfer | null,
+      preventDefault: vi.fn(),
+      currentTarget,
+      relatedTarget,
+    } as unknown as DragEvent
+  }
+
+  interface Harness {
+    root: { getBoundingClientRect: ReturnType<typeof vi.fn>; contains: ReturnType<typeof vi.fn> }
+    onSwap: ReturnType<typeof vi.fn>
+    hooks: CellDropHooks
+  }
+
+  /** Hooks whose root/onSwap log into shared spies so order is assertable. */
+  function makeHarness(index: number): Harness {
+    const root = {
+      getBoundingClientRect: vi.fn(() => ({ left: 40, top: 10 })),
+      contains: vi.fn(() => false),
+    }
+    const onSwap = vi.fn()
+    return {
+      root,
+      onSwap,
+      hooks: {
+        index: () => index,
+        label: () => 'dog face',
+        root: () => root as unknown as HTMLElement,
+        onSwap,
+      },
+    }
+  }
+
+  /** Transfer carrying a card→cell swap payload (source index + label). */
+  function cellTransfer(from: number): Partial<DataTransfer> {
+    return {
+      types: [CELL_DRAG_MIME],
+      getData: (type: string) => (type === CELL_DRAG_MIME ? encodeCellDragPayload({ index: from, label: 'dog face' }) : ''),
+    }
+  }
+
+  /** Stub `window` so a (hypothetical) flip schedule is observable via rAF. */
+  function stubWindowForFlip(): Array<() => void> {
+    const rafQueue: Array<() => void> = []
+    vi.stubGlobal('window', {
+      requestAnimationFrame: (callback: () => void) => {
+        rafQueue.push(callback)
+        return rafQueue.length
+      },
+      matchMedia: () => ({ matches: false }),
+    })
+    return rafQueue
+  }
+
+  function dragStartEvent(): DragEvent {
+    return eventData({ effectAllowed: '', setData: vi.fn() } as unknown as Partial<DataTransfer>) as DragEvent
+  }
+
+  test('drop with a malformed cell payload: no swap, no FLIP, hover reset', () => {
+    const harness = makeHarness(2)
+    const drop = useCellDrop(harness.hooks)
+    const rafQueue = stubWindowForFlip()
+
+    // Hover first so the reset is observable.
+    drop.onDragOver(eventData({ types: [CELL_DRAG_MIME] } as Partial<DataTransfer>) as DragEvent)
+    expect(drop.dropHover.value).toBe(true)
+
+    const malformed = { types: [CELL_DRAG_MIME], getData: () => 'not json' } as Partial<DataTransfer>
+    drop.onDrop(eventData(malformed) as DragEvent)
+
+    expect(drop.dropHover.value).toBe(false)
+    expect(harness.onSwap).not.toHaveBeenCalled()
+    expect(rafQueue).toHaveLength(0) // scheduleSwapFlip never ran
+  })
+
+  test('drop onto its own slot (from === to): no swap, no FLIP, no rect capture', () => {
+    const harness = makeHarness(3)
+    const drop = useCellDrop(harness.hooks)
+    const rafQueue = stubWindowForFlip()
+
+    drop.onDrop(eventData(cellTransfer(3)) as DragEvent)
+
+    expect(harness.onSwap).not.toHaveBeenCalled()
+    expect(harness.root.getBoundingClientRect).not.toHaveBeenCalled()
+    expect(rafQueue).toHaveLength(0)
+  })
+
+  test('pre-swap rect capture happens BEFORE hooks.onSwap (ordering spies)', () => {
+    const harness = makeHarness(1)
+    const drop = useCellDrop(harness.hooks)
+    const log: string[] = []
+    harness.root.getBoundingClientRect.mockImplementation(() => {
+      log.push('rect')
+      return { left: 40, top: 10 }
+    })
+    harness.onSwap.mockImplementation(() => {
+      log.push('swap')
+    })
+
+    drop.onDrop(eventData(cellTransfer(4)) as DragEvent)
+
+    expect(harness.onSwap).toHaveBeenCalledWith(4, 1)
+    expect(log).toEqual(['rect', 'swap'])
+    // Node has no `document`, so no FLIP schedule (the from-rect resolver
+    // yields null there) — the ordering guarantee is what these spies pin.
+  })
+
+  test('library drop hands (index, validated payload) up via emitLibraryPlace', { skip: typeof CustomEvent === 'undefined' }, () => {
+    const harness = makeHarness(5)
+    const drop = useCellDrop(harness.hooks)
+    const dispatched: CustomEvent[] = []
+    const currentTarget = { dispatchEvent: (event: CustomEvent) => dispatched.push(event) }
+    const payload = {
+      icon: { source: 'bundle', set: 'openmoji', name: 'dog-face' },
+      label: 'dog face',
+    } as const
+
+    const transfer = {
+      types: [LIBRARY_DRAG_MIME],
+      getData: (type: string) => (type === LIBRARY_DRAG_MIME ? encodeLibraryDragPayload(payload) : ''),
+    }
+    drop.onDrop(eventData(transfer, currentTarget) as DragEvent)
+
+    expect(drop.dropHover.value).toBe(false)
+    expect(harness.onSwap).not.toHaveBeenCalled()
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0]?.type).toBe(LIBRARY_PLACE_EVENT)
+    expect(dispatched[0]?.detail).toEqual({ index: 5, payload })
+  })
+
+  test('malformed library payload is ignored but preventDefault still fires', () => {
+    const harness = makeHarness(5)
+    const drop = useCellDrop(harness.hooks)
+    const dispatched: CustomEvent[] = []
+    const currentTarget = { dispatchEvent: (event: CustomEvent) => dispatched.push(event) }
+
+    const event = eventData({ types: [LIBRARY_DRAG_MIME], getData: () => '{ broken' } as Partial<DataTransfer>, currentTarget) as DragEvent
+    drop.onDrop(event)
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    expect(dispatched).toHaveLength(0)
+    expect(harness.onSwap).not.toHaveBeenCalled()
+  })
+
+  test('onDragEnd clears the marker only when this instance staged it', () => {
+    // dragstart claims the single active-drag marker — after MY dragstart it
+    // is mine, so my dragend clears it correctly.
+    const mine = makeHarness(3)
+    const drop = useCellDrop(mine.hooks)
+    drop.onDragStart(dragStartEvent())
+    expect(cellDragSource()).toBe(3)
+    drop.onDragEnd()
+    expect(cellDragSource()).toBeNull()
+
+    // …but a source re-staged by another card after my dragstart survives
+    // my dragend — my staged value (3) no longer matches the marker (9).
+    const other = makeHarness(9)
+    const drop2 = useCellDrop(other.hooks)
+    drop.onDragStart(dragStartEvent())
+    drop2.onDragStart(dragStartEvent()) // steals the active-drag staging
+    expect(cellDragSource()).toBe(9)
+    drop.onDragEnd()
+    expect(cellDragSource()).toBe(9) // untouched — drop2 owns the marker now
+    drop2.onDragEnd()
+    expect(cellDragSource()).toBeNull()
+  })
+
+  test('unmount mid-drag (scope dispose) clears the staged marker', () => {
+    const harness = makeHarness(6)
+    const scope = effectScope()
+    const drop = scope.run(() => useCellDrop(harness.hooks))
+    drop?.onDragStart(dragStartEvent())
+    expect(cellDragSource()).toBe(6)
+
+    scope.stop() // the card unmounts mid-drag (grid shrink)
+    expect(cellDragSource()).toBeNull()
+  })
+
+  test('dragleave into a child keeps hover; leaving to the grid clears it', () => {
+    class FakeNode {}
+    vi.stubGlobal('Node', FakeNode)
+    const harness = makeHarness(2)
+    const drop = useCellDrop(harness.hooks)
+
+    // Hover via dragover of a different card.
+    drop.onDragOver(eventData({ types: [CELL_DRAG_MIME] } as Partial<DataTransfer>) as DragEvent)
+    expect(drop.dropHover.value).toBe(true)
+
+    // Cross INTO a child: root.contains(related) → true → hover lives on.
+    const child = new FakeNode()
+    harness.root.contains.mockImplementation(() => true)
+    drop.onDragLeave(eventData(null, harness.root, child as unknown as Node) as DragEvent)
+    expect(harness.root.contains).toHaveBeenCalledWith(child)
+    expect(drop.dropHover.value).toBe(true)
+
+    // Leave to the grid background: contains → false → hover clears.
+    harness.root.contains.mockImplementation(() => false)
+    drop.onDragLeave(eventData(null, harness.root, child as unknown as Node) as DragEvent)
+    expect(drop.dropHover.value).toBe(false)
   })
 })

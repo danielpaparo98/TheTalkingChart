@@ -12,6 +12,7 @@ import {
   RECENTS_STORAGE_KEY,
   createRecentsStore,
   parseRecents,
+  pictogramId,
   pushRecent,
   samePick,
 } from './useRecents'
@@ -57,6 +58,18 @@ describe('pushRecent (pure list)', () => {
   test('identity ignores the label (renames do not fork entries)', () => {
     expect(samePick(pick('dog', 'dog'), pick('dog', 'puppy'))).toBe(true)
     expect(samePick(pick('dog'), pick('cat'))).toBe(false)
+  })
+
+  test('pictogramId is the shared strip key (source included — no :key collisions)', () => {
+    expect(pictogramId({ source: 'bundle', set: 'openmoji', name: 'dog' })).toBe('bundle:openmoji:dog')
+    expect(pictogramId(pick('dog').icon)).toBe('bundle:openmoji:dog')
+    // Cross-source same set:name stay distinct picks and unique keys.
+    expect(
+      samePick(
+        { icon: { source: 'bundle', set: 's', name: 'n' }, label: 'x' },
+        { icon: { source: 'arasaac', set: 's', name: 'n' }, label: 'y' },
+      ),
+    ).toBe(false)
   })
 
   test('never mutates the input list', () => {
