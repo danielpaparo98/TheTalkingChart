@@ -280,9 +280,16 @@ export const useChartStore = defineStore('chart', () => {
 
   // --- Selection (UI-only; never stamps updatedAt/dirty) ---
 
+  /**
+   * Select a cell for the card editor. Selecting ENDS the add flow's ask —
+   * the mirror of askCell clearing the selection: the two edit surfaces
+   * never open at once, so the inspector always follows the click. Deselect
+   * (null) leaves the ask untouched (the page's Escape unwind clears both).
+   */
   function selectCell(index: number | null): void {
     if (index !== null && (index < 0 || index >= doc.value.cells.length)) return
     selectedCellIndex.value = index
+    if (index !== null) askingCellIndex.value = null
   }
 
   /**
