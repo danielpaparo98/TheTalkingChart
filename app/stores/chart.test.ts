@@ -263,6 +263,20 @@ describe('selection and asking', () => {
     expect(store.askingCellIndex).toBeNull()
   })
 
+  test('selectCell while a cell is asking ends the ask (one editing surface)', () => {
+    const { store } = makeStore()
+
+    store.setCell(0, { id: 'c0', icon: bundleIcon('dog'), label: 'dog' })
+    store.askCell(1) // the add flow is live on an empty card
+    expect(store.askingCellIndex).toBe(1)
+
+    // Clicking a filled card must yield the card editor: selection ends the
+    // ask — the mirror of askCell clearing the selection.
+    store.selectCell(0)
+    expect(store.selectedCellIndex).toBe(0)
+    expect(store.askingCellIndex).toBeNull()
+  })
+
   test('askNextAfter advances circularly to the next empty cell and returns null when full', () => {
     const { store } = makeStore()
 
